@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'pages/login.dart';
 import 'pages/screen.dart';
 import 'theme/app_theme.dart';
 
@@ -17,7 +18,9 @@ class GeoraApp extends StatelessWidget {
       debugShowCheckedModeBanner: false,
       theme: AppTheme.lightTheme,
       home: const SplashScreen(),
+      routes: {
+        '/login': (context) => const LoginPage(),
+      },
     );
   }
 }
-

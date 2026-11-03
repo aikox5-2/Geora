@@ -1,0 +1,228 @@
+import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:google_fonts/google_fonts.dart';
+import '../../models/model_absensi.dart';
+import '../../theme/app_colors.dart';
+import '../../widgets/header.dart';
+import '../../widgets/kolom_cari.dart';
+import 'detail_siswa.dart';
+
+class KelasAttendancePage extends StatefulWidget {
+  final String className;
+
+  const KelasAttendancePage({
+    super.key,
+    this.className = 'XII RPL D',
+  });
+
+  @override
+  State<KelasAttendancePage> createState() => _KelasAttendancePageState();
+}
+
+class _KelasAttendancePageState extends State<KelasAttendancePage> {
+  final TextEditingController _searchController = TextEditingController();
+  String _searchQuery = '';
+
+  final List<StudentAttendanceItem> _students = const [
+    StudentAttendanceItem(
+      initials: 'BS',
+      name: 'Budiono Siregar',
+      time: '07.02 WIB',
+    ),
+    StudentAttendanceItem(
+      initials: 'CA',
+      name: 'Chelsea Aqila Putri',
+      time: '07.05 WIB',
+    ),
+    StudentAttendanceItem(
+      initials: 'MA',
+      name: 'Malika Aisyabila',
+      time: '07.28 WIB',
+    ),
+    StudentAttendanceItem(
+      initials: 'AP',
+      name: 'Alya Putri',
+      time: '—',
+    ),
+    StudentAttendanceItem(
+      initials: 'FA',
+      name: 'Fajar Adi',
+      time: '—',
+    ),
+  ];
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
+
+  List<StudentAttendanceItem> get _filteredStudents {
+    if (_searchQuery.isEmpty) return _students;
+    final q = _searchQuery.toLowerCase();
+    return _students.where((s) => s.name.toLowerCase().contains(q)).toList();
+  }
+
+  void _openDetail(StudentAttendanceItem student) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => DetailSiswaPage(
+          studentName: student.name,
+          initials: student.initials,
+          className: widget.className,
+          time: student.time,
+        ),
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final list = _filteredStudents;
+
+    return AnnotatedRegion<SystemUiOverlayStyle>(
+      value: const SystemUiOverlayStyle(
+        statusBarColor: Colors.transparent,
+        statusBarIconBrightness: Brightness.light,
+        systemNavigationBarColor: Color(0xFFF5EDE5),
+        systemNavigationBarIconBrightness: Brightness.dark,
+      ),
+      child: Scaffold(
+        backgroundColor: const Color(0xFFF5EDE5),
+        body: Column(
+          children: [
+            // Top Header
+            GeoraHeader(
+              title: 'Absensi ${widget.className}',
+              subtitle: '16 September 2026',
+              showBrandLogo: true,
+              showBackButton: true,
+            ),
+
+            // Search Bar
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 16, 20, 12),
+              child: GeoraSearchBar(
+                controller: _searchController,
+                hintText: 'Cari nama siswa...',
+                onChanged: (val) {
+                  setState(() {
+                    _searchQuery = val;
+                  });
+                },
+              ),
+            ),
+
+            // List
+            Expanded(
+              child: list.isEmpty
+                  ? Center(
+                      child: Text(
+                        'Tidak ada data siswa ditemukan',
+                        style: GoogleFonts.poppins(
+                          fontSize: 13,
+                          color: AppColors.muted,
+                        ),
+                      ),
+                    )
+                  : ListView.separated(
+                      physics: const BouncingScrollPhysics(),
+                      padding: const EdgeInsets.fromLTRB(20, 4, 20, 20),
+                      itemCount: list.length,
+                      separatorBuilder: (_, _) => const SizedBox(height: 12),
+                      itemBuilder: (context, index) {
+                        final student = list[index];
+                        return Material(
+                          color: Colors.transparent,
+                          child: InkWell(
+                            onTap: () => _openDetail(student),
+                            borderRadius: BorderRadius.circular(20),
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 16,
+                                vertical: 14,
+                              ),
+                              decoration: BoxDecoration(
+                                color: Colors.white,
+                                borderRadius: BorderRadius.circular(20),
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: Colors.black.withValues(alpha: 0.02),
+                                    blurRadius: 8,
+                                    offset: const Offset(0, 3),
+                                  ),
+                                ],
+                              ),
+                              child: Row(
+                                children: [
+                                  // Avatar circle with initials
+                                  Container(
+                                    width: 48,
+                                    height: 48,
+                                    decoration: const BoxDecoration(
+                                      color: Color(0xFFF0E5DC),
+                                      shape: BoxShape.circle,
+                                    ),
+                                    alignment: Alignment.center,
+                                    child: Text(
+                                      student.initials,
+                                      style: GoogleFonts.poppins(
+                                        fontSize: 15,
+                                        fontWeight: FontWeight.w700,
+                                        color: AppColors.maroon,
+                                      ),
+                                    ),
+                                  ),
+                                  const SizedBox(width: 14),
+
+                                  // Name & Time
+                                  Expanded(
+                                    child: Column(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
+                                      children: [
+                                        Text(
+                                          student.name,
+                                          style: GoogleFonts.poppins(
+                                            fontSize: 14.5,
+                                            fontWeight: FontWeight.w700,
+                                            color: AppColors.ink,
+                                          ),
+                                        ),
+                                        const SizedBox(height: 2),
+                                        Text(
+                                          student.time,
+                                          style: GoogleFonts.poppins(
+                                            fontSize: 12,
+                                            color: AppColors.muted,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+
+                                  // "Detail" link in Maroon
+                                  Text(
+                                    'Detail',
+                                    style: GoogleFonts.poppins(
+                                      fontSize: 13,
+                                      fontWeight: FontWeight.w700,
+                                      color: AppColors.maroon,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                        );
+                      },
+                    ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
