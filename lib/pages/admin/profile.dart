@@ -12,9 +12,23 @@ class AdminProfileTab extends StatefulWidget {
 }
 
 class _AdminProfileTabState extends State<AdminProfileTab> {
-  String _phone = '+62 812-3456-7890';
-  String _email = 'ahmad.admin@email.com';
-  String _address = 'Jl. Pendidikan No. 10, Blitar';
+  final AuthService _authService = AuthService();
+
+  @override
+  void initState() {
+    super.initState();
+    _authService.addListener(_onAuthChanged);
+  }
+
+  @override
+  void dispose() {
+    _authService.removeListener(_onAuthChanged);
+    super.dispose();
+  }
+
+  void _onAuthChanged() {
+    if (mounted) setState(() {});
+  }
 
   void _editField(String title, String currentValue, ValueChanged<String> onSaved) {
     final controller = TextEditingController(text: currentValue);
@@ -57,6 +71,123 @@ class _AdminProfileTabState extends State<AdminProfileTab> {
                   ),
                 );
               }
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppColors.maroon,
+              foregroundColor: Colors.white,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            ),
+            child: const Text('Simpan'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// Dialog Perbarui Data Diri Lengkap sesuai ERD
+  void _showUpdateProfileDialog() {
+    final user = _authService.currentUser;
+    final nameCtrl = TextEditingController(text: (user != null && user.name.isNotEmpty) ? user.name : 'Ahmad Admin');
+    final emailCtrl = TextEditingController(text: (user != null && user.email.isNotEmpty) ? user.email : 'admin@gmail.com');
+    final phoneCtrl = TextEditingController(text: (user != null && user.phone != null && user.phone!.isNotEmpty) ? user.phone! : '+62 812-3456-7890');
+    final addressCtrl = TextEditingController(text: (user != null && user.address != null && user.address!.isNotEmpty) ? user.address! : 'Jl. Pendidikan No. 10, Blitar');
+
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: Colors.white,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(22)),
+        title: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(8),
+              decoration: const BoxDecoration(
+                color: Color(0xFFF7EFE8),
+                shape: BoxShape.circle,
+              ),
+              child: const Icon(
+                Icons.badge_outlined,
+                color: AppColors.maroon,
+                size: 24,
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Text(
+                'Perbarui Data Diri',
+                style: GoogleFonts.poppins(
+                  fontWeight: FontWeight.w700,
+                  fontSize: 16.5,
+                  color: AppColors.ink,
+                ),
+              ),
+            ),
+          ],
+        ),
+        content: SizedBox(
+          width: double.maxFinite,
+          child: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                TextField(
+                  controller: nameCtrl,
+                  decoration: InputDecoration(
+                    labelText: 'Nama Lengkap',
+                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                  ),
+                ),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: emailCtrl,
+                  decoration: InputDecoration(
+                    labelText: 'Email / Username Akun',
+                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                  ),
+                ),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: phoneCtrl,
+                  keyboardType: TextInputType.phone,
+                  decoration: InputDecoration(
+                    labelText: 'Nomor Telepon',
+                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                  ),
+                ),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: addressCtrl,
+                  maxLines: 2,
+                  decoration: InputDecoration(
+                    labelText: 'Alamat Domisili',
+                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: Text('Batal', style: GoogleFonts.poppins(color: AppColors.muted)),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              if (nameCtrl.text.trim().isEmpty) return;
+              _authService.updateProfile(
+                name: nameCtrl.text.trim(),
+                email: emailCtrl.text.trim(),
+                phone: phoneCtrl.text.trim(),
+                address: addressCtrl.text.trim(),
+              );
+              Navigator.pop(ctx);
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(
+                  content: Text('Data diri berhasil diperbarui'),
+                  duration: Duration(seconds: 2),
+                ),
+              );
             },
             style: ElevatedButton.styleFrom(
               backgroundColor: AppColors.maroon,
@@ -135,12 +266,22 @@ class _AdminProfileTabState extends State<AdminProfileTab> {
   @override
   Widget build(BuildContext context) {
     final topPadding = MediaQuery.of(context).padding.top;
-    final user = AuthService().currentUser;
-    final name = user?.name ?? 'Ahmad Admin';
+    final user = _authService.currentUser;
+    final name = (user != null && user.name.isNotEmpty) ? user.name : 'Ahmad Admin';
+    final initials = (user != null && user.avatarInitials.isNotEmpty) ? user.avatarInitials : 'AA';
+    final phone = (user != null && user.phone != null && user.phone!.isNotEmpty)
+        ? user.phone!
+        : '+62 812-3456-7890';
+    final email = (user != null && user.email.isNotEmpty)
+        ? user.email
+        : 'admin@gmail.com';
+    final address = (user != null && user.address != null && user.address!.isNotEmpty)
+        ? user.address!
+        : 'Jl. Pendidikan No. 10, Blitar';
 
     return Column(
       children: [
-        // Top Header matching Gambar 2 pixel-perfect
+        // Top Header
         Container(
           width: double.infinity,
           decoration: const BoxDecoration(
@@ -155,7 +296,6 @@ class _AdminProfileTabState extends State<AdminProfileTab> {
             ),
             child: Stack(
               children: [
-                // Decorative circles
                 Positioned(
                   top: -45,
                   right: -35,
@@ -211,7 +351,7 @@ class _AdminProfileTabState extends State<AdminProfileTab> {
                       ),
                       const SizedBox(height: 18),
 
-                      // Avatar, Name, ID Admin, and Administrator Badge
+                      // Avatar, Name, ID (Hanya angka tanpa tulisan ID Admin), and Administrator Badge
                       Row(
                         crossAxisAlignment: CrossAxisAlignment.center,
                         children: [
@@ -224,7 +364,7 @@ class _AdminProfileTabState extends State<AdminProfileTab> {
                             ),
                             alignment: Alignment.center,
                             child: Text(
-                              'AA',
+                              initials,
                               style: GoogleFonts.poppins(
                                 fontSize: 24,
                                 fontWeight: FontWeight.w800,
@@ -246,11 +386,13 @@ class _AdminProfileTabState extends State<AdminProfileTab> {
                                   ),
                                 ),
                                 const SizedBox(height: 2),
+                                // Hanya angka ID tanpa tulisan "ID Admin"
                                 Text(
-                                  'ID Admin 0000000000',
+                                  '0000000000',
                                   style: GoogleFonts.poppins(
-                                    fontSize: 12.5,
-                                    color: AppColors.cream.withValues(alpha: 0.9),
+                                    fontSize: 13,
+                                    fontWeight: FontWeight.w500,
+                                    color: AppColors.cream.withValues(alpha: 0.95),
                                   ),
                                 ),
                                 const SizedBox(height: 8),
@@ -320,7 +462,7 @@ class _AdminProfileTabState extends State<AdminProfileTab> {
           ),
         ),
 
-        // Body Content matching Gambar 2
+        // Body Content
         Expanded(
           child: SingleChildScrollView(
             physics: const BouncingScrollPhysics(),
@@ -328,37 +470,11 @@ class _AdminProfileTabState extends State<AdminProfileTab> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                // 1. Informasi Section
-                Text(
-                  'Informasi',
-                  style: GoogleFonts.poppins(
-                    fontSize: 18,
-                    fontWeight: FontWeight.w800,
-                    color: AppColors.ink,
-                  ),
-                ),
-                const SizedBox(height: 12),
-                Container(
-                  width: double.infinity,
-                  padding: const EdgeInsets.all(18),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFFF7EFE8),
-                    borderRadius: BorderRadius.circular(22),
-                  ),
-                  child: Column(
-                    children: [
-                      _buildInfoRow('Nama', name),
-                      const SizedBox(height: 12),
-                      _buildInfoRow('ID Admin', '0000000000'),
-                    ],
-                  ),
-                ),
+                // Bagian Informasi dihilangkan sesuai permintaan user
 
-                const SizedBox(height: 22),
-
-                // 2. Kontak & Alamat Section
+                // 1. Informasi & Kontak Section
                 Text(
-                  'Kontak & Alamat',
+                  'Informasi & Kontak',
                   style: GoogleFonts.poppins(
                     fontSize: 18,
                     fontWeight: FontWeight.w800,
@@ -379,36 +495,96 @@ class _AdminProfileTabState extends State<AdminProfileTab> {
                   ),
                   child: Column(
                     children: [
+                      // 1. Nomor Telepon
                       _buildContactRow(
                         icon: Icons.phone_outlined,
                         label: 'Nomor Telepon',
-                        value: _phone,
+                        value: phone,
                         onEdit: () => _editField(
                           'Nomor Telepon',
-                          _phone,
-                          (v) => _phone = v,
+                          phone,
+                          (v) => _authService.updateProfile(phone: v),
                         ),
                       ),
                       const Divider(color: Color(0xFFE8DFD8), height: 26, thickness: 1),
+
+                      // 2. Email
                       _buildContactRow(
                         icon: Icons.email_outlined,
                         label: 'Email',
-                        value: _email,
+                        value: email,
                         onEdit: () => _editField(
                           'Email',
-                          _email,
-                          (v) => _email = v,
+                          email,
+                          (v) => _authService.updateProfile(email: v),
                         ),
                       ),
                       const Divider(color: Color(0xFFE8DFD8), height: 26, thickness: 1),
+
+                      // 3. Alamat
                       _buildContactRow(
                         icon: Icons.home_outlined,
                         label: 'Alamat',
-                        value: _address,
+                        value: address,
                         onEdit: () => _editField(
                           'Alamat',
-                          _address,
-                          (v) => _address = v,
+                          address,
+                          (v) => _authService.updateProfile(address: v),
+                        ),
+                      ),
+
+                      const Divider(color: Color(0xFFE8DFD8), height: 26, thickness: 1),
+
+                      // Menu: Perbarui Data Diri (Di dalam container yang sama)
+                      InkWell(
+                        onTap: _showUpdateProfileDialog,
+                        borderRadius: BorderRadius.circular(12),
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(vertical: 4),
+                          child: Row(
+                            children: [
+                              Container(
+                                padding: const EdgeInsets.all(8),
+                                decoration: const BoxDecoration(
+                                  color: Color(0xFFF7EFE8),
+                                  shape: BoxShape.circle,
+                                ),
+                                child: const Icon(
+                                  Icons.badge_outlined,
+                                  color: AppColors.maroon,
+                                  size: 20,
+                                ),
+                              ),
+                              const SizedBox(width: 14),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      'Perbarui Data Diri',
+                                      style: GoogleFonts.poppins(
+                                        fontSize: 13.5,
+                                        fontWeight: FontWeight.w700,
+                                        color: AppColors.maroon,
+                                      ),
+                                    ),
+                                    Text(
+                                      'Ubah nama, email, nomor HP, dan alamat',
+                                      style: GoogleFonts.poppins(
+                                        fontSize: 11,
+                                        color: AppColors.muted,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              const Icon(
+                                Icons.arrow_forward_ios_rounded,
+                                size: 14,
+                                color: AppColors.maroon,
+                              ),
+                            ],
+                          ),
                         ),
                       ),
                     ],
@@ -417,12 +593,12 @@ class _AdminProfileTabState extends State<AdminProfileTab> {
 
                 const SizedBox(height: 20),
 
-                // 3. Change Password Card (Gambar 2 from previous turn)
+                // 2. Change Password Card
                 const ChangePasswordCard(),
 
                 const SizedBox(height: 14),
 
-                // 4. Logout Button Card
+                // 3. Logout Button Card
                 Container(
                   width: double.infinity,
                   decoration: BoxDecoration(
@@ -490,30 +666,6 @@ class _AdminProfileTabState extends State<AdminProfileTab> {
                 ),
               ],
             ),
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildInfoRow(String label, String value) {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-      children: [
-        Text(
-          label,
-          style: GoogleFonts.poppins(
-            fontSize: 12.5,
-            color: AppColors.muted,
-            fontWeight: FontWeight.w500,
-          ),
-        ),
-        Text(
-          value,
-          style: GoogleFonts.poppins(
-            fontSize: 13.5,
-            color: AppColors.ink,
-            fontWeight: FontWeight.w700,
           ),
         ),
       ],

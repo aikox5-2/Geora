@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../services/auth_service.dart';
+import '../../services/dummy_data_service.dart';
 import '../../services/time_service.dart';
 import '../../theme/app_colors.dart';
 import '../../widgets/header.dart';
@@ -47,15 +48,21 @@ class GuruDashboardTab extends StatelessWidget {
                 ),
                 const SizedBox(height: 12),
 
-                // 2x2 Grid of Stat Cards
+                // 2x2 Grid of Stat Cards (Real data from database)
                 Row(
                   children: [
                     Expanded(
-                      child: _buildStatCard(label: 'Total Siswa', value: '32'),
+                      child: _buildStatCard(
+                        label: 'Total Siswa',
+                        value: '${DummyDataService().totalStudents}',
+                      ),
                     ),
                     const SizedBox(width: 12),
                     Expanded(
-                      child: _buildStatCard(label: 'Hadir', value: '27'),
+                      child: _buildStatCard(
+                        label: 'Hadir',
+                        value: '${DummyDataService().attendedToday}',
+                      ),
                     ),
                   ],
                 ),
@@ -63,11 +70,11 @@ class GuruDashboardTab extends StatelessWidget {
                 Row(
                   children: [
                     Expanded(
-                      child: _buildStatCard(label: 'Terlambat', value: '3'),
+                      child: _buildStatCard(label: 'Terlambat', value: '0'),
                     ),
                     const SizedBox(width: 12),
                     Expanded(
-                      child: _buildStatCard(label: 'Izin', value: '2'),
+                      child: _buildStatCard(label: 'Izin', value: '0'),
                     ),
                   ],
                 ),

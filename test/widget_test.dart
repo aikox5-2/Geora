@@ -347,8 +347,8 @@ void main() {
     expect(find.text('Profil Saya'), findsOneWidget);
     expect(find.text('Data akun dan informasi admin'), findsOneWidget);
     expect(find.text('Administrator'), findsOneWidget);
-    expect(find.text('Informasi'), findsOneWidget);
-    expect(find.text('Kontak & Alamat'), findsOneWidget);
+    expect(find.text('Informasi & Kontak'), findsOneWidget);
+    expect(find.text('Perbarui Data Diri'), findsOneWidget);
 
     final changePassCard = find.byType(ChangePasswordCard);
     await tester.ensureVisible(changePassCard);

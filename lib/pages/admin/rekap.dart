@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import '../../services/dummy_data_service.dart';
 import '../../theme/app_colors.dart';
 import '../../widgets/header.dart';
 
@@ -392,32 +393,41 @@ class _AdminRecapTabState extends State<AdminRecapTab> {
                   ),
                 ),
                 const SizedBox(height: 12),
-                Row(
-                  children: [
-                    Expanded(
-                      child: _buildMetricCard(
-                        label: 'Hadir',
-                        value: '84%',
-                        valueColor: const Color(0xFF15803D), // Green
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: _buildMetricCard(
-                        label: 'Izin',
-                        value: '6%',
-                        valueColor: const Color(0xFFD97706), // Amber / Gold
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: _buildMetricCard(
-                        label: 'Terlambat',
-                        value: '10%',
-                        valueColor: const Color(0xFF6B0504), // Dark Maroon
-                      ),
-                    ),
-                  ],
+                Builder(
+                  builder: (context) {
+                    final data = DummyDataService();
+                    final hadirPct = data.totalStudents > 0
+                        ? ((data.attendedToday / data.totalStudents) * 100).round()
+                        : 0;
+
+                    return Row(
+                      children: [
+                        Expanded(
+                          child: _buildMetricCard(
+                            label: 'Hadir',
+                            value: '$hadirPct%',
+                            valueColor: const Color(0xFF15803D), // Green
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: _buildMetricCard(
+                            label: 'Izin',
+                            value: '0%',
+                            valueColor: const Color(0xFFD97706), // Amber / Gold
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: _buildMetricCard(
+                            label: 'Terlambat',
+                            value: '0%',
+                            valueColor: const Color(0xFF6B0504), // Dark Maroon
+                          ),
+                        ),
+                      ],
+                    );
+                  },
                 ),
 
                 const SizedBox(height: 24),

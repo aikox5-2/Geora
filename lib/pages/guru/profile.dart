@@ -12,9 +12,23 @@ class GuruProfileTab extends StatefulWidget {
 }
 
 class _GuruProfileTabState extends State<GuruProfileTab> {
-  String _phone = '+62 812-3456-7890';
-  String _email = 'ahmad.guru@email.com';
-  String _address = 'Jl. Pendidikan No. 10, Blitar';
+  final AuthService _authService = AuthService();
+
+  @override
+  void initState() {
+    super.initState();
+    _authService.addListener(_onAuthChanged);
+  }
+
+  @override
+  void dispose() {
+    _authService.removeListener(_onAuthChanged);
+    super.dispose();
+  }
+
+  void _onAuthChanged() {
+    if (mounted) setState(() {});
+  }
 
   void _editField(String title, String currentValue, ValueChanged<String> onSaved) {
     final controller = TextEditingController(text: currentValue);
@@ -23,7 +37,7 @@ class _GuruProfileTabState extends State<GuruProfileTab> {
       context: context,
       builder: (ctx) => AlertDialog(
         backgroundColor: Colors.white,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(22)),
         title: Text(
           'Ubah $title',
           style: GoogleFonts.poppins(
@@ -36,7 +50,7 @@ class _GuruProfileTabState extends State<GuruProfileTab> {
           controller: controller,
           decoration: InputDecoration(
             labelText: title,
-            border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+            border: OutlineInputBorder(borderRadius: BorderRadius.circular(14)),
           ),
         ),
         actions: [
@@ -47,14 +61,146 @@ class _GuruProfileTabState extends State<GuruProfileTab> {
           ElevatedButton(
             onPressed: () {
               if (controller.text.trim().isNotEmpty) {
-                onSaved(controller.text.trim());
+                final val = controller.text.trim();
+                onSaved(val);
+                if (title == 'Nomor Telepon') {
+                  _authService.updateProfile(phone: val);
+                } else if (title == 'Email') {
+                  _authService.updateProfile(email: val);
+                } else if (title == 'Alamat') {
+                  _authService.updateProfile(address: val);
+                }
                 Navigator.pop(ctx);
                 setState(() {});
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text('$title berhasil diperbarui'),
+                    duration: const Duration(seconds: 2),
+                  ),
+                );
               }
             },
             style: ElevatedButton.styleFrom(
               backgroundColor: AppColors.maroon,
               foregroundColor: Colors.white,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            ),
+            child: const Text('Simpan'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// Dialog Perbarui Data Diri Lengkap sesuai ERD
+  void _showUpdateProfileDialog() {
+    final user = _authService.currentUser;
+    final nameCtrl = TextEditingController(text: (user != null && user.name.isNotEmpty) ? user.name : 'Ahmad Guru');
+    final emailCtrl = TextEditingController(text: (user != null && user.email.isNotEmpty) ? user.email : 'ahmad.guru@email.com');
+    final phoneCtrl = TextEditingController(text: (user != null && user.phone != null && user.phone!.isNotEmpty) ? user.phone! : '+62 812-3456-7890');
+    final addressCtrl = TextEditingController(text: (user != null && user.address != null && user.address!.isNotEmpty) ? user.address! : 'Jl. Pendidikan No. 10, Blitar');
+
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: Colors.white,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(22)),
+        title: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: AppColors.maroon.withValues(alpha: 0.1),
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: const Icon(Icons.badge_rounded, color: AppColors.maroon, size: 20),
+            ),
+            const SizedBox(width: 10),
+            Text(
+              'Perbarui Data Diri',
+              style: GoogleFonts.poppins(
+                fontWeight: FontWeight.w700,
+                fontSize: 16,
+                color: AppColors.ink,
+              ),
+            ),
+          ],
+        ),
+        content: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TextField(
+                controller: nameCtrl,
+                decoration: InputDecoration(
+                  labelText: 'Nama Lengkap',
+                  labelStyle: GoogleFonts.poppins(fontSize: 13),
+                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                  prefixIcon: const Icon(Icons.person_outline_rounded, size: 20),
+                ),
+              ),
+              const SizedBox(height: 12),
+              TextField(
+                controller: emailCtrl,
+                decoration: InputDecoration(
+                  labelText: 'Email',
+                  labelStyle: GoogleFonts.poppins(fontSize: 13),
+                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                  prefixIcon: const Icon(Icons.email_outlined, size: 20),
+                ),
+              ),
+              const SizedBox(height: 12),
+              TextField(
+                controller: phoneCtrl,
+                decoration: InputDecoration(
+                  labelText: 'Nomor Telepon',
+                  labelStyle: GoogleFonts.poppins(fontSize: 13),
+                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                  prefixIcon: const Icon(Icons.phone_outlined, size: 20),
+                ),
+              ),
+              const SizedBox(height: 12),
+              TextField(
+                controller: addressCtrl,
+                maxLines: 2,
+                decoration: InputDecoration(
+                  labelText: 'Alamat',
+                  labelStyle: GoogleFonts.poppins(fontSize: 13),
+                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                  prefixIcon: const Icon(Icons.home_outlined, size: 20),
+                ),
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: Text('Batal', style: GoogleFonts.poppins(color: AppColors.muted)),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              if (nameCtrl.text.trim().isNotEmpty) {
+                _authService.updateProfile(
+                  name: nameCtrl.text.trim(),
+                  email: emailCtrl.text.trim(),
+                  phone: phoneCtrl.text.trim(),
+                  address: addressCtrl.text.trim(),
+                );
+                Navigator.pop(ctx);
+                setState(() {});
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    content: Text('Data diri berhasil diperbarui'),
+                    duration: Duration(seconds: 2),
+                  ),
+                );
+              }
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppColors.maroon,
+              foregroundColor: Colors.white,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
             ),
             child: const Text('Simpan'),
           ),
@@ -108,6 +254,13 @@ class _GuruProfileTabState extends State<GuruProfileTab> {
   @override
   Widget build(BuildContext context) {
     final topPadding = MediaQuery.of(context).padding.top;
+    final user = _authService.currentUser;
+    final teacherName = (user != null && user.name.isNotEmpty) ? user.name : 'Ahmad Guru';
+    final initials = user?.avatarInitials ?? 'AG';
+    final userEmail = (user != null && user.email.isNotEmpty) ? user.email : 'ahmad.guru@email.com';
+    final userPhone = (user != null && user.phone != null && user.phone!.isNotEmpty) ? user.phone! : '+62 812-3456-7890';
+    final userAddress = (user != null && user.address != null && user.address!.isNotEmpty) ? user.address! : 'Jl. Pendidikan No. 10, Blitar';
+    final teacherInfo = (user != null && user.info != null && user.info!.isNotEmpty) ? user.info! : 'Wali Kelas XII RPL D';
 
     return Column(
       children: [
@@ -180,7 +333,7 @@ class _GuruProfileTabState extends State<GuruProfileTab> {
                             ),
                             alignment: Alignment.center,
                             child: Text(
-                              'AG',
+                              initials,
                               style: GoogleFonts.poppins(
                                 fontSize: 24,
                                 fontWeight: FontWeight.w800,
@@ -194,7 +347,7 @@ class _GuruProfileTabState extends State<GuruProfileTab> {
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
                                 Text(
-                                  'Ahmad Guru',
+                                  teacherName,
                                   style: GoogleFonts.poppins(
                                     fontSize: 18,
                                     fontWeight: FontWeight.w800,
@@ -203,7 +356,7 @@ class _GuruProfileTabState extends State<GuruProfileTab> {
                                 ),
                                 const SizedBox(height: 2),
                                 Text(
-                                  'NIP 0000000000',
+                                  '0000000000',
                                   style: GoogleFonts.poppins(
                                     fontSize: 12,
                                     color: AppColors.cream.withValues(alpha: 0.9),
@@ -284,7 +437,7 @@ class _GuruProfileTabState extends State<GuruProfileTab> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                // 1. Informasi Section matching Image 1
+                // 1. Informasi Section
                 Text(
                   'Informasi',
                   style: GoogleFonts.poppins(
@@ -303,9 +456,9 @@ class _GuruProfileTabState extends State<GuruProfileTab> {
                   ),
                   child: Column(
                     children: [
-                      _buildInfoRow('Nama', 'Ahmad Guru'),
+                      _buildInfoRow('Nama', teacherName),
                       const SizedBox(height: 12),
-                      _buildInfoRow('Mapel', 'Matematika'),
+                      _buildInfoRow('Mapel', teacherInfo.contains('•') ? teacherInfo.split('•').first.trim() : 'Matematika'),
                       const SizedBox(height: 12),
                       _buildInfoRow('Wali Kelas', 'XII RPL D'),
                       const SizedBox(height: 12),
@@ -316,9 +469,9 @@ class _GuruProfileTabState extends State<GuruProfileTab> {
 
                 const SizedBox(height: 24),
 
-                // 2. Kontak & Alamat Section matching Image 1
+                // 2. Informasi & Kontak Section
                 Text(
-                  'Kontak & Alamat',
+                  'Informasi & Kontak',
                   style: GoogleFonts.poppins(
                     fontSize: 18,
                     fontWeight: FontWeight.w800,
@@ -328,7 +481,7 @@ class _GuruProfileTabState extends State<GuruProfileTab> {
                 const SizedBox(height: 12),
 
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
+                  padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
                   decoration: BoxDecoration(
                     color: Colors.white,
                     borderRadius: BorderRadius.circular(22),
@@ -349,33 +502,90 @@ class _GuruProfileTabState extends State<GuruProfileTab> {
                       _buildContactRow(
                         icon: Icons.phone_outlined,
                         label: 'Nomor Telepon',
-                        value: _phone,
+                        value: userPhone,
                         onEdit: () => _editField(
                           'Nomor Telepon',
-                          _phone,
-                          (v) => _phone = v,
+                          userPhone,
+                          (v) => _authService.updateProfile(phone: v),
                         ),
                       ),
                       const Divider(height: 22, color: Color(0xFFEFE7DF)),
                       _buildContactRow(
                         icon: Icons.mail_outline_rounded,
                         label: 'Email',
-                        value: _email,
+                        value: userEmail,
                         onEdit: () => _editField(
                           'Email',
-                          _email,
-                          (v) => _email = v,
+                          userEmail,
+                          (v) => _authService.updateProfile(email: v),
                         ),
                       ),
                       const Divider(height: 22, color: Color(0xFFEFE7DF)),
                       _buildContactRow(
                         icon: Icons.home_outlined,
                         label: 'Alamat',
-                        value: _address,
+                        value: userAddress,
                         onEdit: () => _editField(
                           'Alamat',
-                          _address,
-                          (v) => _address = v,
+                          userAddress,
+                          (v) => _authService.updateProfile(address: v),
+                        ),
+                      ),
+                      const Divider(height: 22, color: Color(0xFFEFE7DF)),
+                      // Tombol Perbarui Data Diri Lengkap
+                      InkWell(
+                        onTap: _showUpdateProfileDialog,
+                        borderRadius: BorderRadius.circular(14),
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 14),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFF7EFE8),
+                            borderRadius: BorderRadius.circular(14),
+                          ),
+                          child: Row(
+                            children: [
+                              Container(
+                                padding: const EdgeInsets.all(6),
+                                decoration: BoxDecoration(
+                                  color: AppColors.maroon.withValues(alpha: 0.1),
+                                  borderRadius: BorderRadius.circular(8),
+                                ),
+                                child: const Icon(
+                                  Icons.edit_note_rounded,
+                                  color: AppColors.maroon,
+                                  size: 20,
+                                ),
+                              ),
+                              const SizedBox(width: 12),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      'Perbarui Data Diri',
+                                      style: GoogleFonts.poppins(
+                                        fontSize: 13,
+                                        fontWeight: FontWeight.w700,
+                                        color: AppColors.ink,
+                                      ),
+                                    ),
+                                    Text(
+                                      'Kelola identitas dan informasi akun guru',
+                                      style: GoogleFonts.poppins(
+                                        fontSize: 11,
+                                        color: AppColors.muted,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              const Icon(
+                                Icons.chevron_right_rounded,
+                                color: AppColors.maroon,
+                                size: 22,
+                              ),
+                            ],
+                          ),
                         ),
                       ),
                     ],
@@ -474,4 +684,3 @@ class _GuruProfileTabState extends State<GuruProfileTab> {
     );
   }
 }
-

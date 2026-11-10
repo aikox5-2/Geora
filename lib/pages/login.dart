@@ -161,14 +161,6 @@ class _LoginPageState extends State<LoginPage> {
     }
   }
 
-  void _fillDummy(String email, String pass) {
-    _identifierController.text = email;
-    _passwordController.text = pass;
-    setState(() {
-      _errorMessage = null;
-    });
-  }
-
   @override
   Widget build(BuildContext context) {
     return AnnotatedRegion<SystemUiOverlayStyle>(
@@ -538,34 +530,6 @@ class _LoginPageState extends State<LoginPage> {
                 ),
               ),
             ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _demoChip(String label, String email, String pass) {
-    return Expanded(
-      child: InkWell(
-        onTap: () => _fillDummy(email, pass),
-        borderRadius: BorderRadius.circular(10),
-        child: Container(
-          padding: const EdgeInsets.symmetric(vertical: 6),
-          decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(10),
-            border: Border.all(
-              color: AppColors.maroon.withValues(alpha: 0.3),
-            ),
-          ),
-          alignment: Alignment.center,
-          child: Text(
-            label,
-            style: GoogleFonts.poppins(
-              fontSize: 11.5,
-              fontWeight: FontWeight.w600,
-              color: AppColors.maroon,
-            ),
           ),
         ),
       ),

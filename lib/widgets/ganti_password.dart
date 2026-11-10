@@ -120,7 +120,7 @@ class ChangePasswordCard extends StatelessWidget {
               ),
             ),
             ElevatedButton(
-              onPressed: () {
+              onPressed: () async {
                 final oldP = oldPassController.text.trim();
                 final newP = newPassController.text.trim();
                 final confP = confirmPassController.text.trim();
@@ -156,7 +156,8 @@ class ChangePasswordCard extends StatelessWidget {
                   return;
                 }
 
-                final success = AuthService().updatePassword(oldP, newP);
+                final success = await AuthService().updatePassword(oldP, newP);
+                if (!ctx.mounted) return;
                 if (!success) {
                   _showCustomAlert(
                     ctx,
@@ -169,6 +170,7 @@ class ChangePasswordCard extends StatelessWidget {
 
                 // Success
                 Navigator.pop(ctx);
+                if (!context.mounted) return;
                 _showCustomAlert(
                   context,
                   title: 'Berhasil Diperbarui!',

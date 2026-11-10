@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import '../../services/dummy_data_service.dart';
 import '../../theme/app_colors.dart';
 import '../../widgets/header.dart';
 
@@ -72,26 +73,35 @@ class GuruRecapTab extends StatelessWidget {
                       const SizedBox(height: 18),
 
                       // Bottom legend row
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          Text(
-                            'Hadir 84%',
-                            style: GoogleFonts.poppins(
-                              fontSize: 12.5,
-                              fontWeight: FontWeight.w700,
-                              color: const Color(0xFF2E7D32),
-                            ),
-                          ),
-                          Text(
-                            'Terlambat 9%',
-                            style: GoogleFonts.poppins(
-                              fontSize: 12.5,
-                              fontWeight: FontWeight.w700,
-                              color: const Color(0xFFB78103),
-                            ),
-                          ),
-                        ],
+                      Builder(
+                        builder: (context) {
+                          final data = DummyDataService();
+                          final hadirPct = data.totalStudents > 0
+                              ? ((data.attendedToday / data.totalStudents) * 100).round()
+                              : 0;
+
+                          return Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              Text(
+                                'Hadir $hadirPct%',
+                                style: GoogleFonts.poppins(
+                                  fontSize: 12.5,
+                                  fontWeight: FontWeight.w700,
+                                  color: const Color(0xFF2E7D32),
+                                ),
+                              ),
+                              Text(
+                                'Terlambat 0%',
+                                style: GoogleFonts.poppins(
+                                  fontSize: 12.5,
+                                  fontWeight: FontWeight.w700,
+                                  color: const Color(0xFFB78103),
+                                ),
+                              ),
+                            ],
+                          );
+                        },
                       ),
                     ],
                   ),
@@ -100,32 +110,41 @@ class GuruRecapTab extends StatelessWidget {
                 const SizedBox(height: 16),
 
                 // 2. Row of 3 Stat Cards
-                Row(
-                  children: [
-                    Expanded(
-                      child: _buildSmallStatCard(
-                        label: 'Hadir',
-                        value: '84%',
-                        valColor: const Color(0xFF2E7D32),
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: _buildSmallStatCard(
-                        label: 'Izin',
-                        value: '6%',
-                        valColor: const Color(0xFFF5A623),
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: _buildSmallStatCard(
-                        label: 'Terlambat',
-                        value: '9%',
-                        valColor: const Color(0xFF8B1E1E),
-                      ),
-                    ),
-                  ],
+                Builder(
+                  builder: (context) {
+                    final data = DummyDataService();
+                    final hadirPct = data.totalStudents > 0
+                        ? ((data.attendedToday / data.totalStudents) * 100).round()
+                        : 0;
+
+                    return Row(
+                      children: [
+                        Expanded(
+                          child: _buildSmallStatCard(
+                            label: 'Hadir',
+                            value: '$hadirPct%',
+                            valColor: const Color(0xFF2E7D32),
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: _buildSmallStatCard(
+                            label: 'Izin',
+                            value: '0%',
+                            valColor: const Color(0xFFF5A623),
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: _buildSmallStatCard(
+                            label: 'Terlambat',
+                            value: '0%',
+                            valColor: const Color(0xFF8B1E1E),
+                          ),
+                        ),
+                      ],
+                    );
+                  },
                 ),
 
                 const SizedBox(height: 20),

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../services/dummy_data_service.dart';
+import '../../services/time_service.dart';
 import '../../theme/app_colors.dart';
 import '../../widgets/header.dart';
 import 'kelola_admin.dart';
@@ -19,18 +20,42 @@ class AdminDashboardTab extends StatefulWidget {
   State<AdminDashboardTab> createState() => _AdminDashboardTabState();
 }
 
-class _AdminDashboardTabState extends State<AdminDashboardTab> {
+class _AdminDashboardTabState extends State<AdminDashboardTab>
+    with SingleTickerProviderStateMixin {
   final DummyDataService _dataService = DummyDataService();
+  final TimeService _timeService = TimeService();
+
+  late final AnimationController _animController;
+  late final Animation<double> _fadeAnim;
+  late final Animation<Offset> _slideAnim;
 
   @override
   void initState() {
     super.initState();
+    _animController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 650),
+    );
+    _fadeAnim = CurvedAnimation(
+      parent: _animController,
+      curve: Curves.easeOutCubic,
+    );
+    _slideAnim = Tween<Offset>(
+      begin: const Offset(0, -0.08),
+      end: Offset.zero,
+    ).animate(_fadeAnim);
+
+    _animController.forward();
+
     _dataService.addListener(_onDataChanged);
+    _timeService.addListener(_onDataChanged);
   }
 
   @override
   void dispose() {
+    _animController.dispose();
     _dataService.removeListener(_onDataChanged);
+    _timeService.removeListener(_onDataChanged);
     super.dispose();
   }
 
@@ -40,18 +65,24 @@ class _AdminDashboardTabState extends State<AdminDashboardTab> {
 
   @override
   Widget build(BuildContext context) {
-    return Column(
-      children: [
-        // Top Header
-        const GeoraHeader(
-          title: 'Dashboard Admin',
-          subtitle: 'Rabu, 16 September 2026',
-        ),
+    return SingleChildScrollView(
+      physics: const BouncingScrollPhysics(),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Smooth Animated Top Header (Animasi halus dan fleksibel saat dibuka/discroll)
+          FadeTransition(
+            opacity: _fadeAnim,
+            child: SlideTransition(
+              position: _slideAnim,
+              child: GeoraHeader(
+                title: 'Dashboard Admin',
+                subtitle: _timeService.formattedDate,
+              ),
+            ),
+          ),
 
-        // Scrollable Body
-        Expanded(
-          child: SingleChildScrollView(
-            physics: const BouncingScrollPhysics(),
+          Padding(
             padding: const EdgeInsets.fromLTRB(20, 20, 20, 24),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -106,7 +137,7 @@ class _AdminDashboardTabState extends State<AdminDashboardTab> {
 
                 const SizedBox(height: 24),
 
-                // 2. Aktivitas Terbaru
+                // 2. Aktivitas Terbaru (Tulisan Live dan Bulan Ini telah dihilangkan)
                 Text(
                   'Aktivitas Terbaru',
                   style: GoogleFonts.poppins(
@@ -118,17 +149,19 @@ class _AdminDashboardTabState extends State<AdminDashboardTab> {
                 const SizedBox(height: 12),
 
                 _buildActivityCard(
-                  title: 'Monitoring Absensi',
-                  subtitle: '${_dataService.attendedToday} siswa tercatat hadir',
-                  badgeText: 'Hari ini',
-                  onTap: () => widget.onNavigateTab?.call(2), // Jump to Absensi
+                  title: 'Presensi Harian',
+                  subtitle: 'Monitoring kehadiran siswa & guru hari ini',
+                  onTap: () {
+                    widget.onNavigateTab?.call(2); // Absensi tab
+                  },
                 ),
-                const SizedBox(height: 10),
+                const SizedBox(height: 12),
                 _buildActivityCard(
-                  title: 'Data Siswa',
-                  subtitle: '3 data diperbarui',
-                  badgeText: 'Hari ini',
-                  onTap: () => widget.onNavigateTab?.call(1), // Jump to Siswa
+                  title: 'Rekap Kehadiran',
+                  subtitle: 'Lihat persentase dan riwayat lengkap',
+                  onTap: () {
+                    widget.onNavigateTab?.call(3); // Rekap tab
+                  },
                 ),
 
                 const SizedBox(height: 24),
@@ -144,6 +177,7 @@ class _AdminDashboardTabState extends State<AdminDashboardTab> {
                 ),
                 const SizedBox(height: 12),
 
+                // Row 1: Siswa & Guru
                 Row(
                   children: [
                     Expanded(
@@ -178,33 +212,27 @@ class _AdminDashboardTabState extends State<AdminDashboardTab> {
                   ],
                 ),
                 const SizedBox(height: 12),
-                Row(
-                  children: [
-                    Expanded(
-                      child: _buildAccountManageCard(
-                        title: 'Admin',
-                        subtitle: 'Kelola Akun Admin',
-                        onTap: () {
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (_) => const ManageAdminsPage(),
-                            ),
-                          );
-                        },
+
+                // Row 2: Admin spans 100% full width
+                _buildFullWidthAccountManageCard(
+                  title: 'Admin',
+                  subtitle: 'Kelola Akun Administrator Sistem',
+                  onTap: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => const ManageAdminsPage(),
                       ),
-                    ),
-                    const SizedBox(width: 12),
-                    const Spacer(),
-                  ],
+                    );
+                  },
                 ),
 
                 const SizedBox(height: 20),
               ],
             ),
           ),
-        ),
-      ],
+        ],
+      ),
     );
   }
 
@@ -251,10 +279,10 @@ class _AdminDashboardTabState extends State<AdminDashboardTab> {
     );
   }
 
+  /// Activity card without badges (Clean & Elegant with chevron)
   Widget _buildActivityCard({
     required String title,
     required String subtitle,
-    required String badgeText,
     VoidCallback? onTap,
   }) {
     return Material(
@@ -285,7 +313,145 @@ class _AdminDashboardTabState extends State<AdminDashboardTab> {
                     Text(
                       title,
                       style: GoogleFonts.poppins(
-                        fontSize: 14,
+                        fontSize: 15,
+                        fontWeight: FontWeight.w700,
+                        color: AppColors.ink,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      subtitle,
+                      style: GoogleFonts.poppins(
+                        fontSize: 12,
+                        color: AppColors.muted,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const Icon(
+                Icons.arrow_forward_ios_rounded,
+                size: 16,
+                color: AppColors.maroon,
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildAccountManageCard({
+    required String title,
+    required String subtitle,
+    VoidCallback? onTap,
+  }) {
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(20),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 18),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(20),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.03),
+                blurRadius: 10,
+                offset: const Offset(0, 3),
+              ),
+            ],
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: const BoxDecoration(
+                  color: Color(0xFFF7EFE8),
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(
+                  Icons.people_alt_outlined,
+                  color: AppColors.maroon,
+                  size: 22,
+                ),
+              ),
+              const SizedBox(height: 14),
+              Text(
+                title,
+                style: GoogleFonts.poppins(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w700,
+                  color: AppColors.ink,
+                ),
+              ),
+              const SizedBox(height: 2),
+              Text(
+                subtitle,
+                style: GoogleFonts.poppins(
+                  fontSize: 11.5,
+                  fontWeight: FontWeight.w400,
+                  color: AppColors.muted,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  /// Full-width Admin card so there's no blank gap on the right
+  Widget _buildFullWidthAccountManageCard({
+    required String title,
+    required String subtitle,
+    VoidCallback? onTap,
+  }) {
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(20),
+        child: Container(
+          width: double.infinity,
+          padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 16),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(20),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.03),
+                blurRadius: 10,
+                offset: const Offset(0, 3),
+              ),
+            ],
+          ),
+          child: Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(10),
+                decoration: const BoxDecoration(
+                  color: Color(0xFFF7EFE8),
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(
+                  Icons.admin_panel_settings_outlined,
+                  color: AppColors.maroon,
+                  size: 24,
+                ),
+              ),
+              const SizedBox(width: 14),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      title,
+                      style: GoogleFonts.poppins(
+                        fontSize: 16,
                         fontWeight: FontWeight.w700,
                         color: AppColors.ink,
                       ),
@@ -302,73 +468,10 @@ class _AdminDashboardTabState extends State<AdminDashboardTab> {
                   ],
                 ),
               ),
-              Text(
-                badgeText,
-                style: GoogleFonts.poppins(
-                  fontSize: 12,
-                  fontWeight: FontWeight.w600,
-                  color: AppColors.maroon,
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildAccountManageCard({
-    required String title,
-    required String subtitle,
-    required VoidCallback onTap,
-  }) {
-    return Material(
-      color: Colors.transparent,
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(20),
-        child: Container(
-          padding: const EdgeInsets.all(16),
-          decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(20),
-            border: Border.all(
-              color: const Color(0xFFE8DFD8),
-              width: 1.2,
-            ),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withValues(alpha: 0.02),
-                blurRadius: 8,
-                offset: const Offset(0, 3),
-              ),
-            ],
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
               const Icon(
-                Icons.people_outline_rounded,
-                size: 26,
-                color: AppColors.ink,
-              ),
-              const SizedBox(height: 10),
-              Text(
-                title,
-                style: GoogleFonts.poppins(
-                  fontSize: 15,
-                  fontWeight: FontWeight.w700,
-                  color: AppColors.ink,
-                ),
-              ),
-              const SizedBox(height: 2),
-              Text(
-                subtitle,
-                style: GoogleFonts.poppins(
-                  fontSize: 11,
-                  fontWeight: FontWeight.w400,
-                  color: AppColors.muted,
-                ),
+                Icons.arrow_forward_ios_rounded,
+                size: 16,
+                color: AppColors.maroon,
               ),
             ],
           ),
@@ -377,4 +480,3 @@ class _AdminDashboardTabState extends State<AdminDashboardTab> {
     );
   }
 }
-

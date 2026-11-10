@@ -1,4 +1,6 @@
 import 'package:flutter/foundation.dart';
+import 'auth_service.dart';
+import 'supabase_service.dart';
 
 class ManualSubmission {
   final String id;
@@ -65,6 +67,16 @@ class AttendanceStateService extends ChangeNotifier {
       submissionTime: DateTime.now(),
     );
     notifyListeners();
+
+    // Async record to Supabase
+    final currentUser = AuthService().currentUser;
+    final userId = currentUser?.id ?? '';
+    SupabaseService().submitManualAttendance(
+      siswaId: userId,
+      type: type,
+      reason: reason,
+      date: DateTime.now(),
+    );
   }
 
   void updateManualReason(String newReason) {
@@ -96,12 +108,26 @@ class AttendanceStateService extends ChangeNotifier {
       photoPath: photoPath,
     );
     notifyListeners();
+
+    // Async record to Supabase
+    final currentUser = AuthService().currentUser;
+    final userId = currentUser?.id ?? '';
+    final isLate = time.hour > 7 || (time.hour == 7 && time.minute > 0);
+    SupabaseService().recordAttendance(
+      siswaId: userId,
+      time: time,
+      location: location,
+      latitude: latitude,
+      longitude: longitude,
+      status: isLate ? 'terlambat' : 'hadir',
+      metode: photoBytes != null ? 'kamera' : 'otomatis',
+      photoUrl: photoPath,
+    );
   }
 
-  void resetToday() {
+  void resetForTest() {
     _todayManualSubmission = null;
     _todayAutomaticAttendance = null;
     notifyListeners();
   }
 }
-
