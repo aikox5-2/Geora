@@ -111,6 +111,22 @@ class TimeService extends ChangeNotifier {
     return '$dayStr, ${d.day} $monthStr ${d.year}';
   }
 
+  String get currentMonthYear {
+    final d = now;
+    return '${_monthsId[d.month - 1]} ${d.year}';
+  }
+
+  List<String> get availablePeriods {
+    final List<String> periods = [];
+    final current = now;
+    for (int i = 0; i < 6; i++) {
+      final prevDate = DateTime(current.year, current.month - i, 1);
+      final mName = _monthsId[prevDate.month - 1];
+      periods.add('$mName ${prevDate.year}');
+    }
+    return periods;
+  }
+
   String get formattedDateShort {
     final d = now;
     final dayStr = _daysId[(d.weekday - 1) % 7];

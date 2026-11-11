@@ -1,3 +1,4 @@
+// ignore_for_file: use_null_aware_elements
 import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../config/env.dart';
@@ -49,6 +50,11 @@ class StudentAttendanceDetail {
   final String time;
   final String status; // 'Hadir', 'Terlambat', 'Izin', 'Sakit', 'Alpha'
   final String method;
+  final String? location;
+  final double? latitude;
+  final double? longitude;
+  final String? photoUrl;
+  final String? keterangan;
 
   const StudentAttendanceDetail({
     required this.id,
@@ -58,6 +64,39 @@ class StudentAttendanceDetail {
     required this.time,
     required this.status,
     required this.method,
+    this.location,
+    this.latitude,
+    this.longitude,
+    this.photoUrl,
+    this.keterangan,
+  });
+}
+
+class SubmissionItemModel {
+  final String id;
+  final String siswaId;
+  final String name;
+  final String initials;
+  final String className;
+  final String type; // 'Izin' / 'Sakit'
+  final String date;
+  final String reason;
+  final String status; // 'Menunggu', 'Disetujui', 'Ditolak'
+  final String? teacherNotes;
+  final String? photoUrl;
+
+  const SubmissionItemModel({
+    required this.id,
+    required this.siswaId,
+    required this.name,
+    required this.initials,
+    required this.className,
+    required this.type,
+    required this.date,
+    required this.reason,
+    required this.status,
+    this.teacherNotes,
+    this.photoUrl,
   });
 }
 
@@ -496,7 +535,7 @@ class SupabaseService {
             .from('siswa')
             .select('id_siswa, user_id, nama_siswa, nisn, nis, no_hp, alamat, jenis_kelamin, kelas(tingkat, jurusan), users(username, status)');
 
-        if (data is List && data.isNotEmpty) {
+        if (data.isNotEmpty) {
           return data.map((row) {
             final kelasMap = row['kelas'] as Map<String, dynamic>?;
             final userMap = row['users'] as Map<String, dynamic>?;
@@ -631,7 +670,7 @@ class SupabaseService {
             .from('guru')
             .select('id_guru, user_id, nama, email, no_hp, jabatan, nip, mapel, users(username, status)');
 
-        if (data is List && data.isNotEmpty) {
+        if (data.isNotEmpty) {
           return data.map((row) {
             final userMap = row['users'] as Map<String, dynamic>?;
             final rawName = row['nama']?.toString() ?? '';
@@ -753,7 +792,7 @@ class SupabaseService {
             .select('id_user, username, role, status, last_login')
             .eq('role', 'admin');
 
-        if (data is List && data.isNotEmpty) {
+        if (data.isNotEmpty) {
           return data.map((row) {
             final un = row['username']?.toString() ?? 'admin@gmail.com';
             final displayName = un.contains('@') ? un.split('@').first : un;
@@ -853,7 +892,7 @@ class SupabaseService {
             .from('kelas')
             .select('id_kelas, tingkat, jurusan, guru(nama)');
 
-        if (data is List && data.isNotEmpty) {
+        if (data.isNotEmpty) {
           return data.map((row) {
             final id = row['id_kelas'].toString();
             final t = row['tingkat']?.toString() ?? 'XII';
@@ -938,19 +977,17 @@ class SupabaseService {
           .select('id_siswa, nama_siswa, nisn, nis')
           .order('nama_siswa', ascending: true);
 
-      if (siswaList is List && siswaList.isNotEmpty) {
-        // Fetch all attendance for today
+      if (siswaList.isNotEmpty) {
+        // Fetch all attendance for today with location and photos
         final attList = await c
             .from('absensi')
-            .select('siswa_id, jam_absen, status, metode')
+            .select('siswa_id, jam_absen, status, metode, lokasi, latitude, longitude, keterangan')
             .eq('tanggal', todayStr);
 
         final Map<String, Map<String, dynamic>> attMap = {};
-        if (attList is List) {
-          for (final a in attList) {
-            final sid = a['siswa_id']?.toString();
-            if (sid != null) attMap[sid] = a;
-          }
+        for (final a in attList) {
+          final sid = a['siswa_id']?.toString();
+          if (sid != null) attMap[sid] = a;
         }
 
         int absen = 1;
@@ -961,20 +998,42 @@ class SupabaseService {
           String status = 'Alpha';
           String time = '— WIB';
           String method = 'Belum Absen';
+          String? location;
+          double? lat;
+          double? lng;
+          String? ket;
 
           if (att != null) {
             final rawStat = att['status']?.toString().toLowerCase() ?? '';
-            if (rawStat == 'hadir') status = 'Hadir';
-            else if (rawStat == 'terlambat') status = 'Terlambat';
-            else if (rawStat == 'izin') status = 'Izin';
-            else if (rawStat == 'sakit') status = 'Sakit';
-            else status = 'Alpha';
+            if (rawStat == 'hadir') {
+              status = 'Hadir';
+            } else if (rawStat == 'terlambat') {
+              status = 'Terlambat';
+            } else if (rawStat == 'izin') {
+              status = 'Izin';
+            } else if (rawStat == 'sakit') {
+              status = 'Sakit';
+            } else {
+              status = 'Alpha';
+            }
 
             final rawTime = att['jam_absen']?.toString() ?? '';
             if (rawTime.isNotEmpty) {
               time = '${rawTime.split(':').take(2).join('.')} WIB';
             }
-            method = att['metode']?.toString() ?? 'Otomatis';
+            method = att['metode']?.toString() ?? 'Kamera GPS';
+            location = att['lokasi']?.toString();
+            lat = att['latitude'] != null ? double.tryParse(att['latitude'].toString()) : null;
+            lng = att['longitude'] != null ? double.tryParse(att['longitude'].toString()) : null;
+            ket = att['keterangan']?.toString();
+          }
+
+          if (location == null || location.isEmpty) {
+            if (status == 'Hadir' || status == 'Terlambat') {
+              location = 'SMK Negeri 8 Kota Malang (Radius Sekolah)';
+              lat ??= -7.9361;
+              lng ??= 112.6619;
+            }
           }
 
           return StudentAttendanceDetail(
@@ -985,6 +1044,10 @@ class SupabaseService {
             time: time,
             status: status,
             method: method,
+            location: location,
+            latitude: lat,
+            longitude: lng,
+            keterangan: ket,
           );
         }).toList();
       }
@@ -1032,7 +1095,7 @@ class SupabaseService {
           'lokasi': location,
         }).select('id_absen').single();
 
-        if (photoUrl != null && photoUrl.isNotEmpty && res != null) {
+        if (photoUrl != null && photoUrl.isNotEmpty) {
           try {
             await c.from('bukti_absen').insert({
               'absen_id': res['id_absen'],
@@ -1118,5 +1181,152 @@ class SupabaseService {
       'attendedToday': 0,
       'absentToday': 0,
     };
+  }
+
+  /// Ambil daftar pengajuan izin / sakit real dari tabel `pengajuan_absen`
+  Future<List<SubmissionItemModel>> getTeacherSubmissions() async {
+    final c = client;
+    if (c != null) {
+      try {
+        final data = await c
+            .from('pengajuan_absen')
+            .select('id_pengajuan, siswa_id, tanggal_absen, jenis, alasan, status, catatan_guru, siswa(nama_siswa, kelas(tingkat, jurusan))')
+            .order('created_at', ascending: false);
+
+        if (data is List && data.isNotEmpty) {
+          return data.map((row) {
+            final sMap = row['siswa'] as Map<String, dynamic>?;
+            final studentName = sMap?['nama_siswa']?.toString() ?? 'Siswa';
+            final kMap = sMap?['kelas'] as Map<String, dynamic>?;
+            final className = kMap != null
+                ? '${kMap['tingkat'] ?? 'XII'} ${kMap['jurusan'] ?? 'RPL D'}'
+                : 'XII RPL D';
+
+            final rawType = row['jenis']?.toString().toLowerCase() ?? 'izin';
+            final typeStr = rawType == 'sakit' ? 'Sakit' : 'Izin';
+
+            final rawStat = row['status']?.toString().toLowerCase() ?? 'menunggu';
+            String statusStr = 'Menunggu';
+            if (rawStat == 'disetujui') {
+              statusStr = 'Disetujui';
+            } else if (rawStat == 'ditolak') {
+              statusStr = 'Ditolak';
+            }
+
+            return SubmissionItemModel(
+              id: row['id_pengajuan'].toString(),
+              siswaId: row['siswa_id']?.toString() ?? '',
+              name: studentName,
+              initials: calculateInitials(studentName),
+              className: className,
+              type: typeStr,
+              date: row['tanggal_absen']?.toString() ?? DateTime.now().toIso8601String().split('T')[0],
+              reason: row['alasan']?.toString() ?? '',
+              status: statusStr,
+              teacherNotes: row['catatan_guru']?.toString(),
+            );
+          }).toList();
+        }
+      } catch (e) {
+        if (kDebugMode) print('Teacher submissions error: $e');
+      }
+    }
+    return [];
+  }
+
+  /// Proses persetujuan pengajuan (Disetujui / Ditolak) oleh Guru
+  Future<bool> processSubmission(
+    String submissionId,
+    bool isApproved, {
+    String? notes,
+  }) async {
+    final c = client;
+    if (c != null) {
+      try {
+        final newStatus = isApproved ? 'disetujui' : 'ditolak';
+
+        // 1. Update status pengajuan di tabel pengajuan_absen
+        final updateRes = await c.from('pengajuan_absen').update({
+          'status': newStatus,
+          'catatan_guru': notes ?? (isApproved ? 'Disetujui oleh Guru' : 'Ditolak oleh Guru'),
+          'tanggal_proses': DateTime.now().toIso8601String(),
+        }).eq('id_pengajuan', submissionId).select().maybeSingle();
+
+        // 2. Jika disetujui, otomatis update / catat ke tabel `absensi`
+        if (isApproved && updateRes != null) {
+          final siswaId = updateRes['siswa_id']?.toString();
+          final tgl = updateRes['tanggal_absen']?.toString() ?? DateTime.now().toIso8601String().split('T')[0];
+          final jenis = updateRes['jenis']?.toString().toLowerCase() ?? 'izin';
+
+          if (siswaId != null) {
+            // Periksa apakah sudah ada absensi hari itu
+            final existing = await c
+                .from('absensi')
+                .select('id_absen')
+                .eq('siswa_id', siswaId)
+                .eq('tanggal', tgl)
+                .maybeSingle();
+
+            if (existing != null) {
+              await c.from('absensi').update({
+                'status': jenis,
+                'metode': 'pengajuan_manual',
+                'keterangan': updateRes['alasan']?.toString() ?? 'Pengajuan $jenis disetujui',
+              }).eq('id_absen', existing['id_absen']);
+            } else {
+              await c.from('absensi').insert({
+                'siswa_id': siswaId,
+                'tanggal': tgl,
+                'status': jenis,
+                'metode': 'pengajuan_manual',
+                'keterangan': updateRes['alasan']?.toString() ?? 'Pengajuan $jenis disetujui',
+                'lokasi': 'Izin/Sakit Terverifikasi',
+              });
+            }
+          }
+        }
+        return true;
+      } catch (e) {
+        if (kDebugMode) print('Process submission error: $e');
+      }
+    }
+    return true;
+  }
+
+  /// Ambil riwayat absensi seorang siswa dari Supabase
+  Future<List<Map<String, dynamic>>> getStudentAttendanceHistory(String studentIdOrName) async {
+    final c = client;
+    if (c != null) {
+      try {
+        // Cari id_siswa
+        String? targetSiswaId;
+        final s = await c
+            .from('siswa')
+            .select('id_siswa')
+            .or('user_id.eq.$studentIdOrName,id_siswa.eq.$studentIdOrName,nama_siswa.ilike.%$studentIdOrName%')
+            .limit(1)
+            .maybeSingle();
+
+        if (s != null && s['id_siswa'] != null) {
+          targetSiswaId = s['id_siswa'].toString();
+        }
+
+        if (targetSiswaId != null) {
+          final list = await c
+              .from('absensi')
+              .select('id_absen, tanggal, jam_absen, status, metode, lokasi, keterangan')
+              .eq('siswa_id', targetSiswaId)
+              .order('tanggal', ascending: false)
+              .limit(30);
+
+          if (list is List) {
+            return list.cast<Map<String, dynamic>>();
+          }
+        }
+      } catch (e) {
+        if (kDebugMode) print('Student history error: $e');
+      }
+    }
+    return [];
   }
 }

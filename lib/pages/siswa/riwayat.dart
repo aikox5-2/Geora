@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
+import '../../services/auth_service.dart';
+import '../../services/supabase_service.dart';
+import '../../services/time_service.dart';
 import '../../theme/app_colors.dart';
 
 class StudentHistoryItem {
@@ -30,58 +33,87 @@ class _SiswaHistoryTabState extends State<SiswaHistoryTab> {
   final TextEditingController _searchController = TextEditingController();
   String _searchQuery = '';
   DateTime? _selectedFilterDate;
+  List<StudentHistoryItem> _allHistory = [];
+  bool _isLoading = true;
+  int _attendedThisMonth = 0;
 
-  final List<StudentHistoryItem> _allHistory = [
-    StudentHistoryItem(
-      date: 'Kamis , 09 Sep 2026',
-      time: '07:42 WIB',
-      status: 'Hadir',
-      statusColor: const Color(0xFF2E7D32),
-      dateTime: DateTime(2026, 9, 9),
-    ),
-    StudentHistoryItem(
-      date: 'Rabu , 08 Sep 2026',
-      time: '07:48 WIB',
-      status: 'Hadir',
-      statusColor: const Color(0xFF2E7D32),
-      dateTime: DateTime(2026, 9, 8),
-    ),
-    StudentHistoryItem(
-      date: 'Selasa , 07 Sep 2026',
-      time: '08:14 WIB',
-      status: 'Terlambat',
-      statusColor: const Color(0xFFB78103),
-      dateTime: DateTime(2026, 9, 7),
-    ),
-    StudentHistoryItem(
-      date: 'Senin , 06 Sep 2026',
-      time: '— WIB',
-      status: 'Izin',
-      statusColor: const Color(0xFF1976D2),
-      dateTime: DateTime(2026, 9, 6),
-    ),
-    StudentHistoryItem(
-      date: 'Jumat , 05 Sep 2026',
-      time: '07:39 WIB',
-      status: 'Hadir',
-      statusColor: const Color(0xFF2E7D32),
-      dateTime: DateTime(2026, 9, 5),
-    ),
-    StudentHistoryItem(
-      date: 'Kamis , 04 Sep 2026',
-      time: '07:30 WIB',
-      status: 'Hadir',
-      statusColor: const Color(0xFF2E7D32),
-      dateTime: DateTime(2026, 9, 4),
-    ),
-    StudentHistoryItem(
-      date: 'Rabu , 03 Sep 2026',
-      time: '— WIB',
-      status: 'Sakit',
-      statusColor: const Color(0xFFF57C00),
-      dateTime: DateTime(2026, 9, 3),
-    ),
-  ];
+  @override
+  void initState() {
+    super.initState();
+    _loadRealHistory();
+  }
+
+  Future<void> _loadRealHistory() async {
+    setState(() => _isLoading = true);
+    try {
+      final user = AuthService().currentUser;
+      final userId = user?.id ?? '';
+      final userName = user?.name ?? '';
+
+      final rawList = await SupabaseService().getStudentAttendanceHistory(
+        userId.isNotEmpty ? userId : userName,
+      );
+
+      _attendedThisMonth = 0;
+      final now = TimeService().now;
+
+      _allHistory = rawList.map((row) {
+        final tglStr = row['tanggal']?.toString() ?? '';
+        final jamStr = row['jam_absen']?.toString() ?? '';
+        final statStr = row['status']?.toString().toLowerCase() ?? 'hadir';
+
+        DateTime dt = now;
+        try {
+          dt = DateTime.parse(tglStr);
+        } catch (_) {}
+
+        String formattedDate = tglStr;
+        try {
+          formattedDate = DateFormat('EEEE, dd MMM yyyy', 'id_ID').format(dt);
+        } catch (_) {
+          formattedDate = tglStr;
+        }
+
+        String displayStatus = 'Hadir';
+        Color color = const Color(0xFF2E7D32);
+
+        if (statStr == 'terlambat') {
+          displayStatus = 'Terlambat';
+          color = const Color(0xFFB78103);
+          if (dt.month == now.month && dt.year == now.year) _attendedThisMonth++;
+        } else if (statStr == 'izin') {
+          displayStatus = 'Izin';
+          color = const Color(0xFF1976D2);
+        } else if (statStr == 'sakit') {
+          displayStatus = 'Sakit';
+          color = const Color(0xFFF57C00);
+        } else if (statStr == 'alpha') {
+          displayStatus = 'Alpha';
+          color = const Color(0xFFD32F2F);
+        } else {
+          displayStatus = 'Hadir';
+          color = const Color(0xFF2E7D32);
+          if (dt.month == now.month && dt.year == now.year) _attendedThisMonth++;
+        }
+
+        final timeFormatted = jamStr.isNotEmpty
+            ? '${jamStr.split(':').take(2).join('.')} WIB'
+            : '— WIB';
+
+        return StudentHistoryItem(
+          date: formattedDate,
+          time: timeFormatted,
+          status: displayStatus,
+          statusColor: color,
+          dateTime: dt,
+        );
+      }).toList();
+    } catch (_) {
+      _allHistory = [];
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
+    }
+  }
 
   @override
   void dispose() {
@@ -91,14 +123,12 @@ class _SiswaHistoryTabState extends State<SiswaHistoryTab> {
 
   List<StudentHistoryItem> get _filteredHistory {
     return _allHistory.where((item) {
-      // 1. Text search filter
       final q = _searchQuery.toLowerCase().trim();
       final matchesQuery = q.isEmpty ||
           item.date.toLowerCase().contains(q) ||
           item.status.toLowerCase().contains(q) ||
           item.time.toLowerCase().contains(q);
 
-      // 2. Date picker filter
       bool matchesDate = true;
       if (_selectedFilterDate != null) {
         matchesDate = item.dateTime.year == _selectedFilterDate!.year &&
@@ -111,11 +141,12 @@ class _SiswaHistoryTabState extends State<SiswaHistoryTab> {
   }
 
   Future<void> _pickFilterDate() async {
+    final now = TimeService().now;
     final picked = await showDatePicker(
       context: context,
-      initialDate: _selectedFilterDate ?? DateTime(2026, 9, 9),
-      firstDate: DateTime(2025, 1, 1),
-      lastDate: DateTime(2027, 12, 31),
+      initialDate: _selectedFilterDate ?? now,
+      firstDate: DateTime(now.year - 1, 1, 1),
+      lastDate: DateTime(now.year + 1, 12, 31),
       builder: (context, child) {
         return Theme(
           data: Theme.of(context).copyWith(
@@ -147,6 +178,7 @@ class _SiswaHistoryTabState extends State<SiswaHistoryTab> {
   Widget build(BuildContext context) {
     final topPadding = MediaQuery.of(context).padding.top;
     final list = _filteredHistory;
+    final curMonth = TimeService().formattedDate.split(',').last.trim();
 
     return SingleChildScrollView(
       physics: const BouncingScrollPhysics(),
@@ -154,7 +186,7 @@ class _SiswaHistoryTabState extends State<SiswaHistoryTab> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Header text matching Image 4
+          // Header text
           Text(
             'Riwayat Absensi',
             style: GoogleFonts.poppins(
@@ -165,7 +197,7 @@ class _SiswaHistoryTabState extends State<SiswaHistoryTab> {
           ),
           const SizedBox(height: 3),
           Text(
-            'Rekap kehadiran kamu',
+            'Rekap kehadiran kamu di database sekolah',
             style: GoogleFonts.poppins(
               fontSize: 13,
               color: AppColors.muted,
@@ -193,7 +225,7 @@ class _SiswaHistoryTabState extends State<SiswaHistoryTab> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  'Kehadiran bulan ini',
+                  'Kehadiran Bulan Ini ($curMonth)',
                   style: GoogleFonts.poppins(
                     fontSize: 12,
                     fontWeight: FontWeight.w400,
@@ -202,7 +234,7 @@ class _SiswaHistoryTabState extends State<SiswaHistoryTab> {
                 ),
                 const SizedBox(height: 4),
                 Text(
-                  '18 / 20 Hari',
+                  '$_attendedThisMonth Hadir',
                   style: GoogleFonts.poppins(
                     fontSize: 28,
                     fontWeight: FontWeight.w800,
@@ -216,7 +248,7 @@ class _SiswaHistoryTabState extends State<SiswaHistoryTab> {
 
           const SizedBox(height: 18),
 
-          // Requirement 5: Search Bar + Filter Icon Button { search } [ = ]
+          // Search Bar + Filter Icon Button
           Row(
             children: [
               Expanded(
@@ -275,7 +307,7 @@ class _SiswaHistoryTabState extends State<SiswaHistoryTab> {
               ),
               const SizedBox(width: 10),
 
-              // Filter Date Icon Button [ = ] (Requirement 5)
+              // Filter Date Icon Button
               Material(
                 color: _selectedFilterDate != null ? AppColors.maroon : Colors.white,
                 borderRadius: BorderRadius.circular(16),
@@ -289,7 +321,7 @@ class _SiswaHistoryTabState extends State<SiswaHistoryTab> {
                     height: 50,
                     alignment: Alignment.center,
                     child: Icon(
-                      Icons.tune_rounded, // Equalizer / Filter icon [ = ]
+                      Icons.tune_rounded,
                       color: _selectedFilterDate != null ? Colors.white : AppColors.maroon,
                       size: 24,
                     ),
@@ -315,7 +347,7 @@ class _SiswaHistoryTabState extends State<SiswaHistoryTab> {
                   const Icon(Icons.calendar_today_rounded, size: 14, color: AppColors.maroon),
                   const SizedBox(width: 8),
                   Text(
-                    'Filter Tanggal: ${DateFormat('d MMM yyyy').format(_selectedFilterDate!)}',
+                    'Filter: ${DateFormat('d MMM yyyy').format(_selectedFilterDate!)}',
                     style: GoogleFonts.poppins(
                       fontSize: 12,
                       fontWeight: FontWeight.w600,
@@ -335,7 +367,14 @@ class _SiswaHistoryTabState extends State<SiswaHistoryTab> {
           const SizedBox(height: 16),
 
           // List of History Cards
-          if (list.isEmpty)
+          if (_isLoading)
+            const Center(
+              child: Padding(
+                padding: EdgeInsets.symmetric(vertical: 36),
+                child: CircularProgressIndicator(color: AppColors.maroon),
+              ),
+            )
+          else if (list.isEmpty)
             Container(
               width: double.infinity,
               padding: const EdgeInsets.all(28),
@@ -345,7 +384,7 @@ class _SiswaHistoryTabState extends State<SiswaHistoryTab> {
                   Icon(Icons.event_busy_rounded, color: AppColors.muted.withValues(alpha: 0.5), size: 48),
                   const SizedBox(height: 10),
                   Text(
-                    'Tidak ada catatan presensi ditemukan',
+                    'Tidak ada catatan presensi di database',
                     style: GoogleFonts.poppins(fontSize: 13, color: AppColors.muted),
                   ),
                 ],
@@ -400,12 +439,19 @@ class _SiswaHistoryTabState extends State<SiswaHistoryTab> {
                             ],
                           ),
                         ),
-                        Text(
-                          item.status,
-                          style: GoogleFonts.poppins(
-                            fontSize: 14,
-                            fontWeight: FontWeight.w700,
-                            color: item.statusColor,
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                          decoration: BoxDecoration(
+                            color: item.statusColor.withValues(alpha: 0.1),
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                          child: Text(
+                            item.status,
+                            style: GoogleFonts.poppins(
+                              fontSize: 12.5,
+                              fontWeight: FontWeight.w700,
+                              color: item.statusColor,
+                            ),
                           ),
                         ),
                       ],

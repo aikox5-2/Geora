@@ -412,73 +412,156 @@ class _SiswaAutoAttendancePageState extends State<SiswaAutoAttendancePage> {
 
                           const SizedBox(height: 14),
 
-                          // Google Maps Map Card container
+                          // Google Maps Map Card container (Satelit Frame sesuai Gambar 3)
                           Container(
-                            height: 120,
+                            height: 150,
                             width: double.infinity,
                             decoration: BoxDecoration(
-                              color: const Color(0xFFE8F1F5),
                               borderRadius: BorderRadius.circular(16),
-                              border: Border.all(color: const Color(0xFFD4E3EA)),
-                            ),
-                            child: Stack(
-                              alignment: Alignment.center,
-                              children: [
-                                // Background map grid lines
-                                Positioned.fill(
-                                  child: CustomPaint(
-                                    painter: _MapGridPainter(),
-                                  ),
+                              border: Border.all(color: const Color(0xFFD4E3EA), width: 1.5),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: Colors.black.withValues(alpha: 0.06),
+                                  blurRadius: 10,
+                                  offset: const Offset(0, 3),
                                 ),
-                                // Location marker and label
-                                Row(
-                                  mainAxisAlignment: MainAxisAlignment.center,
-                                  children: [
-                                    Container(
-                                      width: 38,
-                                      height: 38,
+                              ],
+                            ),
+                            child: ClipRRect(
+                              borderRadius: BorderRadius.circular(15),
+                              child: Stack(
+                                fit: StackFit.expand,
+                                children: [
+                                  // Frame Citra Satelit Google Maps SMK Negeri 8 Malang
+                                  Image.asset(
+                                    'asset/maps_smkn8.jpg',
+                                    fit: BoxFit.cover,
+                                    errorBuilder: (context, error, stackTrace) {
+                                      return Container(
+                                        color: const Color(0xFFE8F1F5),
+                                        child: CustomPaint(painter: _MapGridPainter()),
+                                      );
+                                    },
+                                  ),
+                                  // Subtle dark gradient overlay for readability
+                                  Container(
+                                    decoration: BoxDecoration(
+                                      gradient: LinearGradient(
+                                        begin: Alignment.topCenter,
+                                        end: Alignment.bottomCenter,
+                                        colors: [
+                                          Colors.black.withValues(alpha: 0.15),
+                                          Colors.black.withValues(alpha: 0.45),
+                                        ],
+                                      ),
+                                    ),
+                                  ),
+                                  // Watermark / Google Maps indicator in corner
+                                  Positioned(
+                                    top: 10,
+                                    left: 12,
+                                    child: Container(
+                                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                                       decoration: BoxDecoration(
-                                        color: Colors.blue.shade700,
-                                        shape: BoxShape.circle,
-                                        boxShadow: [
-                                          BoxShadow(
-                                            color: Colors.blue.withValues(alpha: 0.3),
-                                            blurRadius: 10,
+                                        color: Colors.black.withValues(alpha: 0.55),
+                                        borderRadius: BorderRadius.circular(8),
+                                      ),
+                                      child: Row(
+                                        mainAxisSize: MainAxisSize.min,
+                                        children: [
+                                          const Icon(Icons.satellite_alt_rounded, color: Colors.white, size: 14),
+                                          const SizedBox(width: 4),
+                                          Text(
+                                            'Google Maps Satellite',
+                                            style: GoogleFonts.poppins(
+                                              fontSize: 10,
+                                              color: Colors.white,
+                                              fontWeight: FontWeight.w500,
+                                            ),
                                           ),
                                         ],
                                       ),
-                                      child: const Icon(
-                                        Icons.school_rounded,
-                                        color: Colors.white,
-                                        size: 20,
+                                    ),
+                                  ),
+                                  // Location marker badge
+                                  Center(
+                                    child: Container(
+                                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                                      decoration: BoxDecoration(
+                                        color: Colors.white.withValues(alpha: 0.94),
+                                        borderRadius: BorderRadius.circular(20),
+                                        boxShadow: [
+                                          BoxShadow(
+                                            color: Colors.black.withValues(alpha: 0.25),
+                                            blurRadius: 10,
+                                            offset: const Offset(0, 4),
+                                          ),
+                                        ],
+                                      ),
+                                      child: Row(
+                                        mainAxisSize: MainAxisSize.min,
+                                        children: [
+                                          Container(
+                                            width: 32,
+                                            height: 32,
+                                            decoration: BoxDecoration(
+                                              color: Colors.blue.shade700,
+                                              shape: BoxShape.circle,
+                                              boxShadow: [
+                                                BoxShadow(
+                                                  color: Colors.blue.withValues(alpha: 0.4),
+                                                  blurRadius: 8,
+                                                ),
+                                              ],
+                                            ),
+                                            child: const Icon(
+                                              Icons.school_rounded,
+                                              color: Colors.white,
+                                              size: 17,
+                                            ),
+                                          ),
+                                          const SizedBox(width: 10),
+                                          Column(
+                                            mainAxisSize: MainAxisSize.min,
+                                            crossAxisAlignment: CrossAxisAlignment.start,
+                                            children: [
+                                              Text(
+                                                'SMK Negeri 8 Kota Malang',
+                                                style: GoogleFonts.poppins(
+                                                  fontSize: 12.5,
+                                                  fontWeight: FontWeight.w700,
+                                                  color: AppColors.ink,
+                                                ),
+                                              ),
+                                              Row(
+                                                children: [
+                                                  Container(
+                                                    width: 7,
+                                                    height: 7,
+                                                    decoration: const BoxDecoration(
+                                                      color: Colors.green,
+                                                      shape: BoxShape.circle,
+                                                    ),
+                                                  ),
+                                                  const SizedBox(width: 5),
+                                                  Text(
+                                                    'Radius GPS Terverifikasi',
+                                                    style: GoogleFonts.poppins(
+                                                      fontSize: 10.5,
+                                                      color: Colors.green.shade800,
+                                                      fontWeight: FontWeight.w700,
+                                                    ),
+                                                  ),
+                                                ],
+                                              ),
+                                            ],
+                                          ),
+                                        ],
                                       ),
                                     ),
-                                    const SizedBox(width: 10),
-                                    Column(
-                                      mainAxisAlignment: MainAxisAlignment.center,
-                                      crossAxisAlignment: CrossAxisAlignment.start,
-                                      children: [
-                                        Text(
-                                          'SMK Negeri 8 Kota Malang',
-                                          style: GoogleFonts.poppins(
-                                            fontSize: 13,
-                                            fontWeight: FontWeight.w700,
-                                            color: AppColors.ink,
-                                          ),
-                                        ),
-                                        Text(
-                                          'Radius GPS Terverifikasi',
-                                          style: GoogleFonts.poppins(
-                                            fontSize: 11,
-                                            color: Colors.green.shade800,
-                                            fontWeight: FontWeight.w600,
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                                  ],
-                                ),
-                              ],
+                                  ),
+                                ],
+                              ),
                             ),
                           ),
 

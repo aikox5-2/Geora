@@ -1,6 +1,7 @@
 import 'package:flutter/foundation.dart';
 import '../config/env.dart';
 import '../models/model_user.dart';
+import 'session_service.dart';
 import 'supabase_service.dart';
 
 enum LoginFailureType {
@@ -33,6 +34,11 @@ class AuthService extends ChangeNotifier {
   UserModel? get currentUser => _currentUser;
   bool get isLoggedIn => _currentUser != null;
 
+  void setCurrentUser(UserModel user) {
+    _currentUser = user;
+    notifyListeners();
+  }
+
   /// Login validation with Supabase database & safe Indonesian error messages
   Future<LoginResult> login(String identifier, String password) async {
     final cleanId = identifier.trim();
@@ -59,6 +65,8 @@ class AuthService extends ChangeNotifier {
       if (result.isSuccess && result.user != null) {
         _currentUser = result.user;
         notifyListeners();
+        // Simpan cookies / session login 3 jam
+        await SessionService().saveSession(result.user!);
       }
       return result;
     } catch (e) {
@@ -82,6 +90,7 @@ class AuthService extends ChangeNotifier {
 
     _currentUser = updatedUser;
     notifyListeners();
+    await SessionService().saveSession(updatedUser);
 
     // Sync to Supabase directly
     await SupabaseService().updatePassword(
@@ -109,6 +118,7 @@ class AuthService extends ChangeNotifier {
       address: address ?? _currentUser!.address,
     );
     notifyListeners();
+    await SessionService().saveSession(_currentUser!);
 
     // Sync to Supabase directly
     await SupabaseService().updateUserProfile(
@@ -125,5 +135,7 @@ class AuthService extends ChangeNotifier {
   void logout() {
     _currentUser = null;
     notifyListeners();
+    // Hapus cookies login
+    SessionService().clearSession();
   }
 }

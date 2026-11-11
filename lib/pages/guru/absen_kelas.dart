@@ -46,27 +46,34 @@ class _KelasAttendancePageState extends State<KelasAttendancePage> {
             time: s.time,
             status: s.status,
             className: widget.className,
+            nisn: s.nisn,
+            location: s.location,
+            latitude: s.latitude,
+            longitude: s.longitude,
+            photoUrl: s.photoUrl,
+            method: s.method,
+            keterangan: s.keterangan,
           );
         }).toList();
       } else {
         // Fallback matching real seed students
         _students = [
-          StudentAttendanceItem(name: 'Ahmad Farhan', initials: 'AF', time: '— WIB', status: 'Alpha', className: widget.className),
-          StudentAttendanceItem(name: 'Budiono Siregar', initials: 'BS', time: '— WIB', status: 'Alpha', className: widget.className),
-          StudentAttendanceItem(name: 'Chelsea Aqila Putri', initials: 'CA', time: '— WIB', status: 'Alpha', className: widget.className),
-          StudentAttendanceItem(name: 'Dimas Ibrahimovic', initials: 'DI', time: '— WIB', status: 'Alpha', className: widget.className),
-          StudentAttendanceItem(name: 'Malika Aisyabila', initials: 'MA', time: '— WIB', status: 'Alpha', className: widget.className),
-          StudentAttendanceItem(name: 'Nabil Syafiq Afa', initials: 'NS', time: '— WIB', status: 'Alpha', className: widget.className),
+          StudentAttendanceItem(name: 'Ahmad Farhan', initials: 'AF', time: '— WIB', status: 'Alpha', className: widget.className, nisn: '0062341901'),
+          StudentAttendanceItem(name: 'Budiono Siregar', initials: 'BS', time: '— WIB', status: 'Alpha', className: widget.className, nisn: '0051283921'),
+          StudentAttendanceItem(name: 'Chelsea Aqila Putri', initials: 'CA', time: '— WIB', status: 'Alpha', className: widget.className, nisn: '0061283922'),
+          StudentAttendanceItem(name: 'Dimas Ibrahimovic', initials: 'DI', time: '— WIB', status: 'Alpha', className: widget.className, nisn: '0062341902'),
+          StudentAttendanceItem(name: 'Malika Aisyabila', initials: 'MA', time: '— WIB', status: 'Alpha', className: widget.className, nisn: '0061283923'),
+          StudentAttendanceItem(name: 'Nabil Syafiq Afa', initials: 'NS', time: '— WIB', status: 'Alpha', className: widget.className, nisn: '0061283924'),
         ];
       }
     } catch (_) {
       _students = [
-        StudentAttendanceItem(name: 'Ahmad Farhan', initials: 'AF', time: '— WIB', status: 'Alpha', className: widget.className),
-        StudentAttendanceItem(name: 'Budiono Siregar', initials: 'BS', time: '— WIB', status: 'Alpha', className: widget.className),
-        StudentAttendanceItem(name: 'Chelsea Aqila Putri', initials: 'CA', time: '— WIB', status: 'Alpha', className: widget.className),
-        StudentAttendanceItem(name: 'Dimas Ibrahimovic', initials: 'DI', time: '— WIB', status: 'Alpha', className: widget.className),
-        StudentAttendanceItem(name: 'Malika Aisyabila', initials: 'MA', time: '— WIB', status: 'Alpha', className: widget.className),
-        StudentAttendanceItem(name: 'Nabil Syafiq Afa', initials: 'NS', time: '— WIB', status: 'Alpha', className: widget.className),
+        StudentAttendanceItem(name: 'Ahmad Farhan', initials: 'AF', time: '— WIB', status: 'Alpha', className: widget.className, nisn: '0062341901'),
+        StudentAttendanceItem(name: 'Budiono Siregar', initials: 'BS', time: '— WIB', status: 'Alpha', className: widget.className, nisn: '0051283921'),
+        StudentAttendanceItem(name: 'Chelsea Aqila Putri', initials: 'CA', time: '— WIB', status: 'Alpha', className: widget.className, nisn: '0061283922'),
+        StudentAttendanceItem(name: 'Dimas Ibrahimovic', initials: 'DI', time: '— WIB', status: 'Alpha', className: widget.className, nisn: '0062341902'),
+        StudentAttendanceItem(name: 'Malika Aisyabila', initials: 'MA', time: '— WIB', status: 'Alpha', className: widget.className, nisn: '0061283923'),
+        StudentAttendanceItem(name: 'Nabil Syafiq Afa', initials: 'NS', time: '— WIB', status: 'Alpha', className: widget.className, nisn: '0061283924'),
       ];
     } finally {
       if (mounted) setState(() => _isLoading = false);
@@ -94,6 +101,13 @@ class _KelasAttendancePageState extends State<KelasAttendancePage> {
           initials: student.initials,
           className: widget.className,
           time: student.time,
+          status: student.status,
+          nisn: student.nisn,
+          location: student.location,
+          latitude: student.latitude,
+          longitude: student.longitude,
+          photoUrl: student.photoUrl,
+          method: student.method,
         ),
       ),
     );

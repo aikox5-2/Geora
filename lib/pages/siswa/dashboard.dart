@@ -22,13 +22,29 @@ class SiswaDashboardTab extends StatelessWidget {
     final user = AuthService().currentUser;
     final studentName = user?.name ?? 'Budiono Siregar';
 
+    final hour = TimeService().now.hour;
+    final greeting = hour < 11
+        ? 'Selamat pagi'
+        : hour < 15
+            ? 'Selamat siang'
+            : hour < 18
+                ? 'Selamat sore'
+                : 'Selamat malam';
+
+    final nisnDisplay = (user != null && user.aliases.isNotEmpty)
+        ? 'NISN • ${user.aliases.first}'
+        : 'NISN • Terverifikasi';
+    final classDisplay = (user != null && user.info != null && user.info!.isNotEmpty)
+        ? user.info!
+        : 'XII RPL D • Rekayasa Perangkat Lunak';
+
     return SingleChildScrollView(
       physics: const BouncingScrollPhysics(),
       padding: EdgeInsets.fromLTRB(20, topPadding + 14, 20, 24),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Greeting & GEORA Logo matching Image 3
+          // Greeting & GEORA Logo
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             crossAxisAlignment: CrossAxisAlignment.center,
@@ -37,7 +53,7 @@ class SiswaDashboardTab extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    'Selamat pagi',
+                    greeting,
                     style: GoogleFonts.poppins(
                       fontSize: 12.5,
                       fontWeight: FontWeight.w400,
@@ -104,7 +120,7 @@ class SiswaDashboardTab extends StatelessWidget {
                 ),
                 const SizedBox(height: 3),
                 Text(
-                  'NISN • 0000000000',
+                  nisnDisplay,
                   style: GoogleFonts.poppins(
                     fontSize: 12,
                     color: AppColors.cream.withValues(alpha: 0.9),
@@ -112,7 +128,7 @@ class SiswaDashboardTab extends StatelessWidget {
                 ),
                 const SizedBox(height: 2),
                 Text(
-                  'XII RPL D • Rekayasa Perangkat Lunak',
+                  classDisplay,
                   style: GoogleFonts.poppins(
                     fontSize: 12,
                     color: AppColors.cream.withValues(alpha: 0.9),
@@ -294,26 +310,84 @@ class SiswaDashboardTab extends StatelessWidget {
             ],
           ),
           const SizedBox(height: 12),
-          Row(
-            children: [
-              Expanded(
-                child: _buildQuickActionCard(
-                  icon: Icons.people_outline_rounded,
-                  title: 'Anggota Kelas',
-                  subtitle: 'Lihat rekap kehadiran',
-                  onTap: () {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (_) => const AnggotaKelasPage(),
+          // Full-width Anggota Kelas card (no awkward gaps)
+          Material(
+            color: Colors.transparent,
+            child: InkWell(
+              onTap: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => const AnggotaKelasPage(),
+                  ),
+                );
+              },
+              borderRadius: BorderRadius.circular(20),
+              child: Container(
+                width: double.infinity,
+                padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 16),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(20),
+                  border: Border.all(
+                    color: const Color(0xFFE8DFD8),
+                    width: 1.2,
+                  ),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withValues(alpha: 0.02),
+                      blurRadius: 8,
+                      offset: const Offset(0, 3),
+                    ),
+                  ],
+                ),
+                child: Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(10),
+                      decoration: const BoxDecoration(
+                        color: Color(0xFFF7EFE8),
+                        shape: BoxShape.circle,
                       ),
-                    );
-                  },
+                      child: const Icon(
+                        Icons.people_outline_rounded,
+                        size: 24,
+                        color: AppColors.maroon,
+                      ),
+                    ),
+                    const SizedBox(width: 14),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Daftar Anggota Kelas',
+                            style: GoogleFonts.poppins(
+                              fontSize: 14.5,
+                              fontWeight: FontWeight.w700,
+                              color: AppColors.ink,
+                            ),
+                          ),
+                          const SizedBox(height: 2),
+                          Text(
+                            'Lihat rekap dan status kehadiran teman sekelas',
+                            style: GoogleFonts.poppins(
+                              fontSize: 11.5,
+                              color: AppColors.muted,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const Icon(
+                      Icons.arrow_forward_ios_rounded,
+                      size: 16,
+                      color: AppColors.maroon,
+                    ),
+                  ],
                 ),
               ),
-              const SizedBox(width: 12),
-              const Spacer(),
-            ],
+            ),
           ),
 
           const SizedBox(height: 20),

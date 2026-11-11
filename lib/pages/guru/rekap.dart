@@ -1,30 +1,165 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../services/dummy_data_service.dart';
+import '../../services/time_service.dart';
 import '../../theme/app_colors.dart';
 import '../../widgets/header.dart';
 
-class GuruRecapTab extends StatelessWidget {
+class GuruRecapTab extends StatefulWidget {
   const GuruRecapTab({super.key});
+
+  @override
+  State<GuruRecapTab> createState() => _GuruRecapTabState();
+}
+
+class _GuruRecapTabState extends State<GuruRecapTab> {
+  late String _selectedPeriod;
+
+  @override
+  void initState() {
+    super.initState();
+    _selectedPeriod = TimeService().currentMonthYear;
+  }
+
+  void _showPeriodPicker() {
+    final periods = TimeService().availablePeriods;
+
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (ctx) {
+        return Padding(
+          padding: const EdgeInsets.fromLTRB(24, 20, 24, 30),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text(
+                    'Pilih Periode Rekap',
+                    style: GoogleFonts.poppins(
+                      fontSize: 17,
+                      fontWeight: FontWeight.w800,
+                      color: AppColors.ink,
+                    ),
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.close_rounded),
+                    onPressed: () => Navigator.pop(ctx),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 6),
+              Text(
+                'Data rekap kehadiran disinkronkan secara berkala',
+                style: GoogleFonts.poppins(
+                  fontSize: 12,
+                  color: AppColors.muted,
+                ),
+              ),
+              const SizedBox(height: 16),
+              ...periods.map(
+                (p) => ListTile(
+                  contentPadding: EdgeInsets.zero,
+                  leading: Icon(
+                    Icons.calendar_month_rounded,
+                    color: _selectedPeriod == p ? AppColors.maroon : AppColors.muted,
+                  ),
+                  title: Text(
+                    p,
+                    style: GoogleFonts.poppins(
+                      fontSize: 14,
+                      fontWeight: _selectedPeriod == p ? FontWeight.w700 : FontWeight.w500,
+                      color: _selectedPeriod == p ? AppColors.maroon : AppColors.ink,
+                    ),
+                  ),
+                  trailing: _selectedPeriod == p
+                      ? const Icon(Icons.check_rounded, color: AppColors.maroon)
+                      : null,
+                  onTap: () {
+                    setState(() {
+                      _selectedPeriod = p;
+                    });
+                    Navigator.pop(ctx);
+                  },
+                ),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
     return Column(
       children: [
-        // Top Header matching Image 3
-        const GeoraHeader(
+        // Top Header
+        GeoraHeader(
           title: 'Rekap Kehadiran',
-          subtitle: 'XII RPL D • September 2026',
+          subtitle: 'XII RPL D • $_selectedPeriod',
           showBrandLogo: true,
         ),
 
         Expanded(
           child: SingleChildScrollView(
             physics: const BouncingScrollPhysics(),
-            padding: const EdgeInsets.fromLTRB(20, 20, 20, 24),
+            padding: const EdgeInsets.fromLTRB(20, 16, 20, 24),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
+                // Filter Periode Selector Bar
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text(
+                      'Periode Data',
+                      style: GoogleFonts.poppins(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w700,
+                        color: AppColors.ink,
+                      ),
+                    ),
+                    InkWell(
+                      onTap: _showPeriodPicker,
+                      borderRadius: BorderRadius.circular(12),
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(color: const Color(0xFFE5DDD5)),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            const Icon(Icons.calendar_today_rounded, size: 14, color: AppColors.maroon),
+                            const SizedBox(width: 8),
+                            Text(
+                              _selectedPeriod,
+                              style: GoogleFonts.poppins(
+                                fontSize: 12.5,
+                                fontWeight: FontWeight.w700,
+                                color: AppColors.maroon,
+                              ),
+                            ),
+                            const SizedBox(width: 4),
+                            const Icon(Icons.keyboard_arrow_down_rounded, size: 18, color: AppColors.maroon),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+
+                const SizedBox(height: 16),
+
                 // 1. Chart Card
                 Container(
                   padding: const EdgeInsets.fromLTRB(20, 20, 20, 16),
@@ -59,13 +194,13 @@ class GuruRecapTab extends StatelessWidget {
                           mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                           crossAxisAlignment: CrossAxisAlignment.end,
                           children: [
-                            _buildBar('1', 0.58),
-                            _buildBar('2', 0.72),
-                            _buildBar('3', 0.65),
-                            _buildBar('4', 0.85),
-                            _buildBar('5', 0.80),
-                            _buildBar('6', 0.92),
-                            _buildBar('7', 0.74),
+                            _buildBar('Sen', 0.85),
+                            _buildBar('Sel', 0.90),
+                            _buildBar('Rab', 0.80),
+                            _buildBar('Kam', 0.92),
+                            _buildBar('Jum', 0.88),
+                            _buildBar('Sab', 0.95),
+                            _buildBar('Min', 0.75),
                           ],
                         ),
                       ),
@@ -155,12 +290,12 @@ class GuruRecapTab extends StatelessWidget {
                   child: ElevatedButton(
                     onPressed: () {
                       ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
+                        SnackBar(
                           content: Text(
-                            'Mengunduh berkas Rekap Kehadiran XII RPL D...',
+                            'Mengunduh berkas Rekap Kehadiran XII RPL D ($_selectedPeriod)...',
                           ),
                           backgroundColor: AppColors.maroon,
-                          duration: Duration(seconds: 2),
+                          duration: const Duration(seconds: 2),
                         ),
                       );
                     },
@@ -260,4 +395,3 @@ class GuruRecapTab extends StatelessWidget {
     );
   }
 }
-

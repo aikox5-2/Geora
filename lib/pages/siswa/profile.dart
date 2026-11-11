@@ -98,7 +98,7 @@ class _SiswaProfileTabState extends State<SiswaProfileTab> {
     final nameCtrl = TextEditingController(text: (user != null && user.name.isNotEmpty) ? user.name : 'Budiono Siregar');
     final emailCtrl = TextEditingController(text: (user != null && user.email.isNotEmpty) ? user.email : 'budiono@siswa.sch.id');
     final phoneCtrl = TextEditingController(text: (user != null && user.phone != null && user.phone!.isNotEmpty) ? user.phone! : '+62 812-3456-7890');
-    final addressCtrl = TextEditingController(text: (user != null && user.address != null && user.address!.isNotEmpty) ? user.address! : 'Jl. Pendidikan No. 10, Blitar');
+    final addressCtrl = TextEditingController(text: (user != null && user.address != null && user.address!.isNotEmpty) ? user.address! : 'Jl. Teluk Pacitan, Malang');
 
     showDialog(
       context: context,
@@ -109,68 +109,70 @@ class _SiswaProfileTabState extends State<SiswaProfileTab> {
           children: [
             Container(
               padding: const EdgeInsets.all(8),
-              decoration: BoxDecoration(
-                color: AppColors.maroon.withValues(alpha: 0.1),
-                borderRadius: BorderRadius.circular(10),
+              decoration: const BoxDecoration(
+                color: Color(0xFFF7EFE8),
+                shape: BoxShape.circle,
               ),
-              child: const Icon(Icons.badge_rounded, color: AppColors.maroon, size: 20),
+              child: const Icon(
+                Icons.badge_outlined,
+                color: AppColors.maroon,
+                size: 24,
+              ),
             ),
-            const SizedBox(width: 10),
-            Text(
-              'Perbarui Data Diri',
-              style: GoogleFonts.poppins(
-                fontWeight: FontWeight.w700,
-                fontSize: 16,
-                color: AppColors.ink,
+            const SizedBox(width: 12),
+            Expanded(
+              child: Text(
+                'Perbarui Data Diri',
+                style: GoogleFonts.poppins(
+                  fontWeight: FontWeight.w700,
+                  fontSize: 16.5,
+                  color: AppColors.ink,
+                ),
               ),
             ),
           ],
         ),
-        content: SingleChildScrollView(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              TextField(
-                controller: nameCtrl,
-                decoration: InputDecoration(
-                  labelText: 'Nama Lengkap',
-                  labelStyle: GoogleFonts.poppins(fontSize: 13),
-                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-                  prefixIcon: const Icon(Icons.person_outline_rounded, size: 20),
+        content: SizedBox(
+          width: double.maxFinite,
+          child: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                TextField(
+                  controller: nameCtrl,
+                  decoration: InputDecoration(
+                    labelText: 'Nama Lengkap',
+                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                  ),
                 ),
-              ),
-              const SizedBox(height: 12),
-              TextField(
-                controller: emailCtrl,
-                decoration: InputDecoration(
-                  labelText: 'Email / NISN',
-                  labelStyle: GoogleFonts.poppins(fontSize: 13),
-                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-                  prefixIcon: const Icon(Icons.email_outlined, size: 20),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: emailCtrl,
+                  decoration: InputDecoration(
+                    labelText: 'Email / NISN Akun',
+                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                  ),
                 ),
-              ),
-              const SizedBox(height: 12),
-              TextField(
-                controller: phoneCtrl,
-                decoration: InputDecoration(
-                  labelText: 'Nomor Telepon',
-                  labelStyle: GoogleFonts.poppins(fontSize: 13),
-                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-                  prefixIcon: const Icon(Icons.phone_outlined, size: 20),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: phoneCtrl,
+                  keyboardType: TextInputType.phone,
+                  decoration: InputDecoration(
+                    labelText: 'Nomor Telepon',
+                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                  ),
                 ),
-              ),
-              const SizedBox(height: 12),
-              TextField(
-                controller: addressCtrl,
-                maxLines: 2,
-                decoration: InputDecoration(
-                  labelText: 'Alamat',
-                  labelStyle: GoogleFonts.poppins(fontSize: 13),
-                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-                  prefixIcon: const Icon(Icons.home_outlined, size: 20),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: addressCtrl,
+                  maxLines: 2,
+                  decoration: InputDecoration(
+                    labelText: 'Alamat Domisili',
+                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                  ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
         ),
         actions: [
@@ -180,22 +182,21 @@ class _SiswaProfileTabState extends State<SiswaProfileTab> {
           ),
           ElevatedButton(
             onPressed: () {
-              if (nameCtrl.text.trim().isNotEmpty) {
-                _authService.updateProfile(
-                  name: nameCtrl.text.trim(),
-                  email: emailCtrl.text.trim(),
-                  phone: phoneCtrl.text.trim(),
-                  address: addressCtrl.text.trim(),
-                );
-                Navigator.pop(ctx);
-                setState(() {});
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(
-                    content: Text('Data diri berhasil diperbarui'),
-                    duration: Duration(seconds: 2),
-                  ),
-                );
-              }
+              if (nameCtrl.text.trim().isEmpty) return;
+              _authService.updateProfile(
+                name: nameCtrl.text.trim(),
+                email: emailCtrl.text.trim(),
+                phone: phoneCtrl.text.trim(),
+                address: addressCtrl.text.trim(),
+              );
+              Navigator.pop(ctx);
+              setState(() {});
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(
+                  content: Text('Data diri berhasil diperbarui'),
+                  duration: Duration(seconds: 2),
+                ),
+              );
             },
             style: ElevatedButton.styleFrom(
               backgroundColor: AppColors.maroon,
@@ -214,17 +215,33 @@ class _SiswaProfileTabState extends State<SiswaProfileTab> {
       context: context,
       builder: (ctx) => AlertDialog(
         backgroundColor: Colors.white,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        title: Text(
-          'Keluar dari Akun Siswa?',
-          style: GoogleFonts.poppins(
-            fontWeight: FontWeight.w700,
-            color: AppColors.ink,
-          ),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(22)),
+        title: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: Colors.red.shade50,
+                shape: BoxShape.circle,
+              ),
+              child: Icon(Icons.logout_rounded, color: Colors.red.shade700, size: 24),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Text(
+                'Keluar dari Akun Siswa?',
+                style: GoogleFonts.poppins(
+                  fontWeight: FontWeight.w700,
+                  fontSize: 16,
+                  color: AppColors.ink,
+                ),
+              ),
+            ),
+          ],
         ),
         content: Text(
-          'Anda akan diarahkan kembali ke halaman login.',
-          style: GoogleFonts.poppins(color: AppColors.muted, fontSize: 13),
+          'Anda akan diarahkan kembali ke halaman login utama aplikasi GEORA.',
+          style: GoogleFonts.poppins(color: AppColors.muted, fontSize: 13, height: 1.5),
         ),
         actions: [
           TextButton(
@@ -243,6 +260,7 @@ class _SiswaProfileTabState extends State<SiswaProfileTab> {
             style: ElevatedButton.styleFrom(
               backgroundColor: AppColors.maroon,
               foregroundColor: Colors.white,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
             ),
             child: const Text('Keluar'),
           ),
@@ -256,16 +274,18 @@ class _SiswaProfileTabState extends State<SiswaProfileTab> {
     final topPadding = MediaQuery.of(context).padding.top;
     final user = _authService.currentUser;
     final studentName = (user != null && user.name.isNotEmpty) ? user.name : 'Budiono Siregar';
-    final initials = user?.avatarInitials ?? 'BS';
+    final initials = (user != null && user.avatarInitials.isNotEmpty) ? user.avatarInitials : 'BS';
+    final nisn = (user != null && user.aliases.isNotEmpty) ? user.aliases.first : '0051283921';
     final userEmail = (user != null && user.email.isNotEmpty) ? user.email : 'budiono@siswa.sch.id';
     final userPhone = (user != null && user.phone != null && user.phone!.isNotEmpty) ? user.phone! : '+62 812-3456-7890';
-    final userAddress = (user != null && user.address != null && user.address!.isNotEmpty) ? user.address! : 'Jl. Pendidikan No. 10, Blitar';
+    final userAddress = (user != null && user.address != null && user.address!.isNotEmpty) ? user.address! : 'Jl. Teluk Pacitan, Malang';
     final classInfo = (user != null && user.info != null && user.info!.isNotEmpty) ? user.info! : 'XII RPL D • Rekayasa Perangkat Lunak';
 
     return Column(
       children: [
-        // Top Maroon Header matching Image 2
+        // Top Header
         Container(
+          width: double.infinity,
           decoration: const BoxDecoration(
             color: AppColors.maroon,
             borderRadius: BorderRadius.vertical(
@@ -303,7 +323,7 @@ class _SiswaProfileTabState extends State<SiswaProfileTab> {
                       Text(
                         'Profil Saya',
                         style: GoogleFonts.poppins(
-                          fontSize: 25,
+                          fontSize: 26,
                           fontWeight: FontWeight.w800,
                           color: AppColors.white,
                           letterSpacing: -0.5,
@@ -318,7 +338,7 @@ class _SiswaProfileTabState extends State<SiswaProfileTab> {
                           color: AppColors.cream.withValues(alpha: 0.9),
                         ),
                       ),
-                      const SizedBox(height: 20),
+                      const SizedBox(height: 18),
 
                       // Profile Info Row inside Maroon Header
                       Row(
@@ -355,11 +375,13 @@ class _SiswaProfileTabState extends State<SiswaProfileTab> {
                                   ),
                                 ),
                                 const SizedBox(height: 2),
+                                // Angka NISN langsung tanpa label "ID"
                                 Text(
-                                  '0000000000',
+                                  nisn,
                                   style: GoogleFonts.poppins(
-                                    fontSize: 12,
-                                    color: AppColors.cream.withValues(alpha: 0.9),
+                                    fontSize: 13,
+                                    fontWeight: FontWeight.w500,
+                                    color: AppColors.cream.withValues(alpha: 0.95),
                                   ),
                                 ),
                                 const SizedBox(height: 8),
@@ -388,10 +410,11 @@ class _SiswaProfileTabState extends State<SiswaProfileTab> {
                             icon: const Icon(
                               Icons.more_vert_rounded,
                               color: Colors.white,
+                              size: 26,
                             ),
                             color: Colors.white,
                             shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(14),
+                              borderRadius: BorderRadius.circular(16),
                             ),
                             onSelected: (val) {
                               if (val == 'logout') {
@@ -403,14 +426,14 @@ class _SiswaProfileTabState extends State<SiswaProfileTab> {
                                 value: 'logout',
                                 child: Row(
                                   children: [
-                                    Icon(Icons.logout_rounded,
-                                        size: 18, color: Colors.red.shade700),
-                                    const SizedBox(width: 8),
+                                    const Icon(Icons.logout_rounded,
+                                        size: 20, color: AppColors.maroon),
+                                    const SizedBox(width: 10),
                                     Text(
-                                      'Keluar dari Akun',
+                                      'Keluar Akun',
                                       style: GoogleFonts.poppins(
                                         fontSize: 13,
-                                        color: Colors.red.shade700,
+                                        color: AppColors.ink,
                                         fontWeight: FontWeight.w600,
                                       ),
                                     ),
@@ -433,45 +456,11 @@ class _SiswaProfileTabState extends State<SiswaProfileTab> {
         Expanded(
           child: SingleChildScrollView(
             physics: const BouncingScrollPhysics(),
-            padding: const EdgeInsets.fromLTRB(20, 20, 20, 24),
+            padding: const EdgeInsets.fromLTRB(20, 18, 20, 24),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                // 1. Informasi Akademik
-                Text(
-                  'Informasi Akademik',
-                  style: GoogleFonts.poppins(
-                    fontSize: 18,
-                    fontWeight: FontWeight.w800,
-                    color: AppColors.ink,
-                  ),
-                ),
-                const SizedBox(height: 12),
-
-                Container(
-                  padding: const EdgeInsets.all(20),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFFF7EFE8),
-                    borderRadius: BorderRadius.circular(22),
-                  ),
-                  child: Column(
-                    children: [
-                      _buildInfoRow('Nama', studentName),
-                      const SizedBox(height: 12),
-                      _buildInfoRow('Absen', '12'),
-                      const SizedBox(height: 12),
-                      _buildInfoRow('Kelas', classInfo.split('•').first.trim()),
-                      const SizedBox(height: 12),
-                      _buildInfoRow('Jurusan', classInfo.contains('•') ? classInfo.split('•')[1].trim() : 'Rekayasa Perangkat Lunak'),
-                      const SizedBox(height: 12),
-                      _buildInfoRow('NISN', '0000000000'),
-                    ],
-                  ),
-                ),
-
-                const SizedBox(height: 24),
-
-                // 2. Informasi & Kontak Section
+                // 1. Informasi & Kontak Section
                 Text(
                   'Informasi & Kontak',
                   style: GoogleFonts.poppins(
@@ -489,7 +478,7 @@ class _SiswaProfileTabState extends State<SiswaProfileTab> {
                     borderRadius: BorderRadius.circular(22),
                     border: Border.all(
                       color: const Color(0xFFE8DFD8),
-                      width: 1,
+                      width: 1.2,
                     ),
                     boxShadow: [
                       BoxShadow(
@@ -511,10 +500,10 @@ class _SiswaProfileTabState extends State<SiswaProfileTab> {
                           (v) => _authService.updateProfile(phone: v),
                         ),
                       ),
-                      const Divider(height: 22, color: Color(0xFFEFE7DF)),
+                      const Divider(height: 26, color: Color(0xFFEFE7DF)),
                       _buildContactRow(
                         icon: Icons.mail_outline_rounded,
-                        label: 'Email',
+                        label: 'Email / NISN Akun',
                         value: userEmail,
                         onEdit: () => _editField(
                           'Email',
@@ -522,7 +511,7 @@ class _SiswaProfileTabState extends State<SiswaProfileTab> {
                           (v) => _authService.updateProfile(email: v),
                         ),
                       ),
-                      const Divider(height: 22, color: Color(0xFFEFE7DF)),
+                      const Divider(height: 26, color: Color(0xFFEFE7DF)),
                       _buildContactRow(
                         icon: Icons.home_outlined,
                         label: 'Alamat',
@@ -533,32 +522,29 @@ class _SiswaProfileTabState extends State<SiswaProfileTab> {
                           (v) => _authService.updateProfile(address: v),
                         ),
                       ),
-                      const Divider(height: 22, color: Color(0xFFEFE7DF)),
-                      // Tombol Perbarui Data Diri Lengkap
+                      const Divider(height: 26, color: Color(0xFFEFE7DF)),
+
+                      // Tombol Perbarui Data Diri Lengkap di Container yang Sama
                       InkWell(
                         onTap: _showUpdateProfileDialog,
-                        borderRadius: BorderRadius.circular(14),
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 14),
-                          decoration: BoxDecoration(
-                            color: const Color(0xFFF7EFE8),
-                            borderRadius: BorderRadius.circular(14),
-                          ),
+                        borderRadius: BorderRadius.circular(12),
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(vertical: 4),
                           child: Row(
                             children: [
                               Container(
-                                padding: const EdgeInsets.all(6),
-                                decoration: BoxDecoration(
-                                  color: AppColors.maroon.withValues(alpha: 0.1),
-                                  borderRadius: BorderRadius.circular(8),
+                                padding: const EdgeInsets.all(8),
+                                decoration: const BoxDecoration(
+                                  color: Color(0xFFF7EFE8),
+                                  shape: BoxShape.circle,
                                 ),
                                 child: const Icon(
-                                  Icons.edit_note_rounded,
+                                  Icons.badge_outlined,
                                   color: AppColors.maroon,
                                   size: 20,
                                 ),
                               ),
-                              const SizedBox(width: 12),
+                              const SizedBox(width: 14),
                               Expanded(
                                 child: Column(
                                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -566,13 +552,13 @@ class _SiswaProfileTabState extends State<SiswaProfileTab> {
                                     Text(
                                       'Perbarui Data Diri',
                                       style: GoogleFonts.poppins(
-                                        fontSize: 13,
+                                        fontSize: 13.5,
                                         fontWeight: FontWeight.w700,
-                                        color: AppColors.ink,
+                                        color: AppColors.maroon,
                                       ),
                                     ),
                                     Text(
-                                      'Kelola identitas dan informasi akun siswa',
+                                      'Ubah nama, email, nomor HP, dan alamat',
                                       style: GoogleFonts.poppins(
                                         fontSize: 11,
                                         color: AppColors.muted,
@@ -582,9 +568,9 @@ class _SiswaProfileTabState extends State<SiswaProfileTab> {
                                 ),
                               ),
                               const Icon(
-                                Icons.chevron_right_rounded,
+                                Icons.arrow_forward_ios_rounded,
+                                size: 14,
                                 color: AppColors.maroon,
-                                size: 22,
                               ),
                             ],
                           ),
@@ -594,37 +580,78 @@ class _SiswaProfileTabState extends State<SiswaProfileTab> {
                   ),
                 ),
 
-                const SizedBox(height: 18),
+                const SizedBox(height: 20),
                 const ChangePasswordCard(),
+                const SizedBox(height: 14),
+
+                // Keluar Sesi Button
+                Container(
+                  width: double.infinity,
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(20),
+                    border: Border.all(
+                      color: Colors.red.shade100,
+                      width: 1.2,
+                    ),
+                  ),
+                  child: Material(
+                    color: Colors.transparent,
+                    child: InkWell(
+                      borderRadius: BorderRadius.circular(20),
+                      onTap: _showLogoutDialog,
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
+                        child: Row(
+                          children: [
+                            Container(
+                              padding: const EdgeInsets.all(8),
+                              decoration: BoxDecoration(
+                                color: Colors.red.shade50,
+                                shape: BoxShape.circle,
+                              ),
+                              child: Icon(
+                                Icons.logout_rounded,
+                                color: Colors.red.shade700,
+                                size: 20,
+                              ),
+                            ),
+                            const SizedBox(width: 14),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    'Keluar Sesi Siswa',
+                                    style: GoogleFonts.poppins(
+                                      fontSize: 13.5,
+                                      fontWeight: FontWeight.w700,
+                                      color: Colors.red.shade700,
+                                    ),
+                                  ),
+                                  Text(
+                                    'Kembali ke halaman login utama',
+                                    style: GoogleFonts.poppins(
+                                      fontSize: 11,
+                                      color: AppColors.muted,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            Icon(
+                              Icons.arrow_forward_ios_rounded,
+                              size: 14,
+                              color: Colors.red.shade300,
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
                 const SizedBox(height: 24),
               ],
-            ),
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildInfoRow(String label, String value) {
-    return Row(
-      children: [
-        SizedBox(
-          width: 90,
-          child: Text(
-            label,
-            style: GoogleFonts.poppins(
-              fontSize: 12.5,
-              color: AppColors.muted,
-            ),
-          ),
-        ),
-        Expanded(
-          child: Text(
-            value,
-            style: GoogleFonts.poppins(
-              fontSize: 13.5,
-              fontWeight: FontWeight.w700,
-              color: AppColors.ink,
             ),
           ),
         ),
@@ -651,13 +678,14 @@ class _SiswaProfileTabState extends State<SiswaProfileTab> {
                 style: GoogleFonts.poppins(
                   fontSize: 11,
                   color: AppColors.muted,
+                  fontWeight: FontWeight.w500,
                 ),
               ),
               const SizedBox(height: 2),
               Text(
                 value,
                 style: GoogleFonts.poppins(
-                  fontSize: 13,
+                  fontSize: 13.5,
                   fontWeight: FontWeight.w700,
                   color: AppColors.ink,
                 ),
@@ -665,20 +693,19 @@ class _SiswaProfileTabState extends State<SiswaProfileTab> {
             ],
           ),
         ),
-        InkWell(
-          onTap: onEdit,
-          borderRadius: BorderRadius.circular(16),
-          child: Container(
-            width: 38,
-            height: 38,
-            decoration: BoxDecoration(
-              color: const Color(0xFFF3ECE6),
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: const Icon(
-              Icons.edit_outlined,
-              size: 18,
-              color: AppColors.maroon,
+        Material(
+          color: const Color(0xFFF5EDE5),
+          borderRadius: BorderRadius.circular(10),
+          child: InkWell(
+            onTap: onEdit,
+            borderRadius: BorderRadius.circular(10),
+            child: const Padding(
+              padding: EdgeInsets.all(8),
+              child: Icon(
+                Icons.edit_outlined,
+                size: 16,
+                color: AppColors.ink,
+              ),
             ),
           ),
         ),

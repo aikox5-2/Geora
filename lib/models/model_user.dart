@@ -83,4 +83,50 @@ class UserModel {
       status: status ?? this.status,
     );
   }
+
+  Map<String, dynamic> toJson() {
+    return {
+      'id': id,
+      'email': email,
+      'aliases': aliases,
+      'password': password,
+      'name': name,
+      'role': role.name,
+      'info': info,
+      'avatarInitials': avatarInitials,
+      'phone': phone,
+      'address': address,
+      'status': status,
+    };
+  }
+
+  factory UserModel.fromJson(Map<String, dynamic> json) {
+    UserRole parsedRole = UserRole.siswa;
+    final r = json['role']?.toString().toLowerCase();
+    if (r == 'admin') {
+      parsedRole = UserRole.admin;
+    } else if (r == 'guru') {
+      parsedRole = UserRole.guru;
+    }
+
+    final rawAliases = json['aliases'];
+    List<String> parsedAliases = [];
+    if (rawAliases is List) {
+      parsedAliases = rawAliases.map((e) => e.toString()).toList();
+    }
+
+    return UserModel(
+      id: json['id']?.toString() ?? '',
+      email: json['email']?.toString() ?? '',
+      aliases: parsedAliases,
+      password: json['password']?.toString() ?? '',
+      name: json['name']?.toString() ?? 'Pengguna',
+      role: parsedRole,
+      info: json['info']?.toString(),
+      avatarInitials: json['avatarInitials']?.toString() ?? 'U',
+      phone: json['phone']?.toString(),
+      address: json['address']?.toString(),
+      status: json['status']?.toString() ?? 'aktif',
+    );
+  }
 }

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../services/dummy_data_service.dart';
+import '../../services/time_service.dart';
 import '../../theme/app_colors.dart';
 import '../../widgets/header.dart';
 
@@ -12,14 +13,15 @@ class AdminRecapTab extends StatefulWidget {
 }
 
 class _AdminRecapTabState extends State<AdminRecapTab> {
-  String _selectedPeriod = 'September 2026';
-  final List<String> _availablePeriods = [
-    'September 2026',
-    'Agustus 2026',
-    'Juli 2026',
-    'Juni 2026',
-    'Mei 2026',
-  ];
+  late String _selectedPeriod;
+  late List<String> _availablePeriods;
+
+  @override
+  void initState() {
+    super.initState();
+    _selectedPeriod = TimeService().currentMonthYear;
+    _availablePeriods = TimeService().availablePeriods;
+  }
 
   // Daily attendance percentages: [Sen, Sel, Rab, Kam, Jum, Sab, Min]
   final List<Map<String, dynamic>> _dailyData = [

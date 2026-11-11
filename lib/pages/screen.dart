@@ -2,8 +2,14 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
+import '../models/model_user.dart';
+import '../services/auth_service.dart';
+import '../services/session_service.dart';
 import '../theme/app_colors.dart';
+import 'admin/home.dart';
+import 'guru/home.dart';
 import 'login.dart';
+import 'siswa/home.dart';
 
 class SplashScreen extends StatefulWidget {
   const SplashScreen({super.key});
@@ -79,10 +85,55 @@ class _SplashScreenState extends State<SplashScreen>
       }
     });
 
-    // 3. 5-second timer before fading out to the login screen
-    _navigationTimer = Timer(const Duration(seconds: 5), () {
-      _navigateToLogin();
+    // 3. 3-second timer before checking session or fading out to the login screen
+    _navigationTimer = Timer(const Duration(seconds: 3), () {
+      _checkSessionAndNavigate();
     });
+  }
+
+  Future<void> _checkSessionAndNavigate() async {
+    _navigationTimer?.cancel();
+    if (!mounted) return;
+
+    try {
+      final sessionUser = await SessionService().getSession();
+      if (!mounted) return;
+
+      if (sessionUser != null) {
+        AuthService().setCurrentUser(sessionUser);
+        Widget targetPage;
+        switch (sessionUser.role) {
+          case UserRole.admin:
+            targetPage = const AdminMainPage();
+            break;
+          case UserRole.guru:
+            targetPage = const GuruMainPage();
+            break;
+          case UserRole.siswa:
+            targetPage = const SiswaMainPage();
+            break;
+        }
+
+        Navigator.of(context).pushReplacement(
+          PageRouteBuilder(
+            transitionDuration: const Duration(milliseconds: 600),
+            pageBuilder: (context, animation, secondaryAnimation) => targetPage,
+            transitionsBuilder: (context, animation, secondaryAnimation, child) {
+              return FadeTransition(
+                opacity: CurvedAnimation(
+                  parent: animation,
+                  curve: Curves.easeInOut,
+                ),
+                child: child,
+              );
+            },
+          ),
+        );
+        return;
+      }
+    } catch (_) {}
+
+    _navigateToLogin();
   }
 
   void _navigateToLogin() {
@@ -128,7 +179,7 @@ class _SplashScreenState extends State<SplashScreen>
       child: Scaffold(
         backgroundColor: AppColors.maroon,
         body: GestureDetector(
-          onTap: _navigateToLogin, // Tap anywhere to skip immediately
+          onTap: _checkSessionAndNavigate, // Tap anywhere to skip immediately
           behavior: HitTestBehavior.opaque,
           child: SafeArea(
             child: SizedBox.expand(

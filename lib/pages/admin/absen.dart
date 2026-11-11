@@ -156,14 +156,19 @@ class _AdminAttendanceTabState extends State<AdminAttendanceTab> {
                                     child: Row(
                                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                                       children: [
-                                        Text(
-                                          item.className,
-                                          style: GoogleFonts.poppins(
-                                            fontSize: 14.5,
-                                            fontWeight: FontWeight.w700,
-                                            color: AppColors.ink,
+                                        Expanded(
+                                          child: Text(
+                                            item.className,
+                                            maxLines: 1,
+                                            overflow: TextOverflow.ellipsis,
+                                            style: GoogleFonts.poppins(
+                                              fontSize: 14,
+                                              fontWeight: FontWeight.w700,
+                                              color: AppColors.ink,
+                                            ),
                                           ),
                                         ),
+                                        const SizedBox(width: 8),
                                         Row(
                                           children: [
                                             Container(
