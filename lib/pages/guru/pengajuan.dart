@@ -153,6 +153,7 @@ class _GuruSubmissionsTabState extends State<GuruSubmissionsTab> {
                               children: [
                                 // Avatar & Info
                                 Row(
+                                  crossAxisAlignment: CrossAxisAlignment.center,
                                   children: [
                                     Container(
                                       width: 52,
@@ -176,38 +177,54 @@ class _GuruSubmissionsTabState extends State<GuruSubmissionsTab> {
                                       child: Column(
                                         crossAxisAlignment: CrossAxisAlignment.start,
                                         children: [
+                                          // Nama siswa full width
                                           Text(
                                             item.name,
+                                            maxLines: 1,
+                                            overflow: TextOverflow.ellipsis,
                                             style: GoogleFonts.poppins(
                                               fontSize: 15.5,
                                               fontWeight: FontWeight.w700,
                                               color: AppColors.ink,
                                             ),
                                           ),
-                                          const SizedBox(height: 2),
-                                          Text(
-                                            '${item.type} • ${item.date}',
-                                            style: GoogleFonts.poppins(
-                                              fontSize: 12,
-                                              color: AppColors.muted,
-                                            ),
+                                          const SizedBox(height: 4),
+                                          // Baris kedua: tipe+tanggal di kiri, badge kelas di kanan
+                                          Row(
+                                            crossAxisAlignment: CrossAxisAlignment.center,
+                                            children: [
+                                              Expanded(
+                                                child: Text(
+                                                  '${item.type} • ${item.date}',
+                                                  maxLines: 1,
+                                                  overflow: TextOverflow.ellipsis,
+                                                  style: GoogleFonts.poppins(
+                                                    fontSize: 12,
+                                                    color: AppColors.muted,
+                                                  ),
+                                                ),
+                                              ),
+                                              const SizedBox(width: 8),
+                                              Container(
+                                                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                                                decoration: BoxDecoration(
+                                                  color: const Color(0xFFF7EFE8),
+                                                  borderRadius: BorderRadius.circular(8),
+                                                ),
+                                                child: Text(
+                                                  item.className,
+                                                  maxLines: 1,
+                                                  overflow: TextOverflow.ellipsis,
+                                                  style: GoogleFonts.poppins(
+                                                    fontSize: 10.5,
+                                                    fontWeight: FontWeight.w600,
+                                                    color: AppColors.maroon,
+                                                  ),
+                                                ),
+                                              ),
+                                            ],
                                           ),
                                         ],
-                                      ),
-                                    ),
-                                    Container(
-                                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                                      decoration: BoxDecoration(
-                                        color: const Color(0xFFF7EFE8),
-                                        borderRadius: BorderRadius.circular(10),
-                                      ),
-                                      child: Text(
-                                        item.className,
-                                        style: GoogleFonts.poppins(
-                                          fontSize: 11,
-                                          fontWeight: FontWeight.w600,
-                                          color: AppColors.maroon,
-                                        ),
                                       ),
                                     ),
                                   ],
@@ -234,6 +251,81 @@ class _GuruSubmissionsTabState extends State<GuruSubmissionsTab> {
                                 ),
 
                                 const SizedBox(height: 14),
+
+                                // Bukti Foto / Surat (jika ada)
+                                if (item.photoUrl != null && item.photoUrl!.isNotEmpty) ...[
+                                  InkWell(
+                                    onTap: () {
+                                      showDialog(
+                                        context: context,
+                                        builder: (ctx) => Dialog(
+                                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+                                          clipBehavior: Clip.antiAlias,
+                                          child: Column(
+                                            mainAxisSize: MainAxisSize.min,
+                                            children: [
+                                              AppBar(
+                                                title: Text(
+                                                  'Bukti Surat / Foto: ${item.name}',
+                                                  style: GoogleFonts.poppins(fontSize: 14, fontWeight: FontWeight.w700),
+                                                ),
+                                                backgroundColor: AppColors.maroon,
+                                                foregroundColor: Colors.white,
+                                                automaticallyImplyLeading: false,
+                                                actions: [
+                                                  IconButton(
+                                                    icon: const Icon(Icons.close_rounded),
+                                                    onPressed: () => Navigator.pop(ctx),
+                                                  ),
+                                                ],
+                                              ),
+                                              Image.network(
+                                                item.photoUrl!,
+                                                fit: BoxFit.contain,
+                                                loadingBuilder: (_, child, progress) {
+                                                  if (progress == null) return child;
+                                                  return const Padding(
+                                                    padding: EdgeInsets.all(40),
+                                                    child: CircularProgressIndicator(color: AppColors.maroon),
+                                                  );
+                                                },
+                                                errorBuilder: (context, error, stackTrace) => const Padding(
+                                                  padding: EdgeInsets.all(30),
+                                                  child: Text('Gagal memuat gambar bukti.'),
+                                                ),
+                                              ),
+                                            ],
+                                          ),
+                                        ),
+                                      );
+                                    },
+                                    borderRadius: BorderRadius.circular(12),
+                                    child: Container(
+                                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                                      decoration: BoxDecoration(
+                                        color: const Color(0xFFF7EFE8),
+                                        borderRadius: BorderRadius.circular(12),
+                                        border: Border.all(color: const Color(0xFFE8DFD8)),
+                                      ),
+                                      child: Row(
+                                        mainAxisSize: MainAxisSize.min,
+                                        children: [
+                                          const Icon(Icons.image_outlined, color: AppColors.maroon, size: 18),
+                                          const SizedBox(width: 8),
+                                          Text(
+                                            'Lihat Lampiran Bukti Surat/Foto',
+                                            style: GoogleFonts.poppins(
+                                              fontSize: 12,
+                                              fontWeight: FontWeight.w600,
+                                              color: AppColors.maroon,
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                  ),
+                                  const SizedBox(height: 12),
+                                ],
 
                                 // Status Badge
                                 Row(

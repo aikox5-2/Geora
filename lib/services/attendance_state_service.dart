@@ -43,22 +43,49 @@ class AttendanceStateService extends ChangeNotifier {
 
   ManualSubmission? _todayManualSubmission;
   AutomaticAttendance? _todayAutomaticAttendance;
+  String? _dbTodayStatus;
 
   ManualSubmission? get todayManualSubmission => _todayManualSubmission;
-  bool get hasManualSubmitted => _todayManualSubmission != null;
+  bool get hasManualSubmitted => _todayManualSubmission != null || (_dbTodayStatus != null && (_dbTodayStatus!.toLowerCase().contains('izin') || _dbTodayStatus!.toLowerCase().contains('sakit')));
 
   AutomaticAttendance? get todayAutomaticAttendance => _todayAutomaticAttendance;
-  bool get hasAutomaticSubmitted => _todayAutomaticAttendance != null;
+  bool get hasAutomaticSubmitted => _todayAutomaticAttendance != null || (_dbTodayStatus != null && (_dbTodayStatus!.toLowerCase() == 'hadir' || _dbTodayStatus!.toLowerCase() == 'terlambat'));
+
+  bool get isAlreadyCheckedInToday => hasAutomaticSubmitted || hasManualSubmitted;
 
   String get todayStatusLabel {
     if (_todayAutomaticAttendance != null) return 'Hadir';
     if (_todayManualSubmission != null) return _todayManualSubmission!.type;
+    if (_dbTodayStatus != null && _dbTodayStatus!.isNotEmpty) {
+      final s = _dbTodayStatus!.toLowerCase();
+      if (s == 'hadir') return 'Hadir';
+      if (s == 'terlambat') return 'Terlambat';
+      if (s == 'izin') return 'Izin';
+      if (s == 'sakit') return 'Sakit';
+      return _dbTodayStatus!;
+    }
     return 'Belum Absen';
+  }
+
+  /// Sync today's attendance status directly from Supabase
+  Future<void> syncTodayAttendance([String? userId]) async {
+    final uid = userId ?? AuthService().currentUser?.id;
+    if (uid == null || uid.isEmpty) return;
+
+    final att = await SupabaseService().getTodayStudentAttendance(uid);
+    if (att != null) {
+      _dbTodayStatus = att['status']?.toString();
+    } else {
+      _dbTodayStatus = null;
+    }
+    notifyListeners();
   }
 
   void submitManual({
     required String type,
     required String reason,
+    Uint8List? fileBytes,
+    String? fileName,
   }) {
     _todayManualSubmission = ManualSubmission(
       id: 'sub_${DateTime.now().millisecondsSinceEpoch}',
@@ -66,6 +93,7 @@ class AttendanceStateService extends ChangeNotifier {
       reason: reason,
       submissionTime: DateTime.now(),
     );
+    _dbTodayStatus = type;
     notifyListeners();
 
     // Async record to Supabase
@@ -76,6 +104,8 @@ class AttendanceStateService extends ChangeNotifier {
       type: type,
       reason: reason,
       date: DateTime.now(),
+      fileBytes: fileBytes,
+      fileName: fileName,
     );
   }
 
@@ -88,17 +118,18 @@ class AttendanceStateService extends ChangeNotifier {
 
   void cancelManualSubmission() {
     _todayManualSubmission = null;
+    _dbTodayStatus = null;
     notifyListeners();
   }
 
-  void submitAutomatic({
+  Future<bool> submitAutomatic({
     required DateTime time,
     required String location,
     required double latitude,
     required double longitude,
     Uint8List? photoBytes,
     String? photoPath,
-  }) {
+  }) async {
     _todayAutomaticAttendance = AutomaticAttendance(
       time: time,
       location: location,
@@ -107,13 +138,14 @@ class AttendanceStateService extends ChangeNotifier {
       photoBytes: photoBytes,
       photoPath: photoPath,
     );
+    final isLate = time.hour > 7 || (time.hour == 7 && time.minute > 0);
+    _dbTodayStatus = isLate ? 'Terlambat' : 'Hadir';
     notifyListeners();
 
     // Async record to Supabase
     final currentUser = AuthService().currentUser;
     final userId = currentUser?.id ?? '';
-    final isLate = time.hour > 7 || (time.hour == 7 && time.minute > 0);
-    SupabaseService().recordAttendance(
+    final success = await SupabaseService().recordAttendance(
       siswaId: userId,
       time: time,
       location: location,
@@ -121,13 +153,15 @@ class AttendanceStateService extends ChangeNotifier {
       longitude: longitude,
       status: isLate ? 'terlambat' : 'hadir',
       metode: photoBytes != null ? 'kamera' : 'otomatis',
-      photoUrl: photoPath,
+      photoBytes: photoBytes,
     );
+    return success;
   }
 
   void resetForTest() {
     _todayManualSubmission = null;
     _todayAutomaticAttendance = null;
+    _dbTodayStatus = null;
     notifyListeners();
   }
 }

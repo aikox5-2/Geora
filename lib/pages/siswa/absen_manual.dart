@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:image_picker/image_picker.dart';
 import '../../services/attendance_state_service.dart';
 import '../../services/time_service.dart';
 import '../../theme/app_colors.dart';
@@ -16,9 +17,13 @@ class AbsenManualPage extends StatefulWidget {
 class _AbsenManualPageState extends State<AbsenManualPage> {
   final AttendanceStateService _stateService = AttendanceStateService();
   final TimeService _timeService = TimeService();
+  final ImagePicker _picker = ImagePicker();
 
   String _selectedType = 'Izin';
   final TextEditingController _reasonController = TextEditingController();
+  Uint8List? _proofFileBytes;
+  String? _proofFileName;
+  bool _isSubmitting = false;
 
   @override
   void initState() {
@@ -37,7 +42,32 @@ class _AbsenManualPageState extends State<AbsenManualPage> {
     if (mounted) setState(() {});
   }
 
-  void _submitManualAttendance() {
+  Future<void> _pickProof(ImageSource source) async {
+    try {
+      final picked = await _picker.pickImage(
+        source: source,
+        maxWidth: 1200,
+        maxHeight: 1200,
+        imageQuality: 85,
+      );
+
+      if (picked != null) {
+        final bytes = await picked.readAsBytes();
+        setState(() {
+          _proofFileBytes = bytes;
+          _proofFileName = picked.name;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Gagal memilih file: $e')),
+        );
+      }
+    }
+  }
+
+  void _submitManualAttendance() async {
     final reason = _reasonController.text.trim();
     if (reason.isEmpty) {
       showDialog(
@@ -88,7 +118,16 @@ class _AbsenManualPageState extends State<AbsenManualPage> {
       return;
     }
 
-    _stateService.submitManual(type: _selectedType, reason: reason);
+    setState(() => _isSubmitting = true);
+
+    _stateService.submitManual(
+      type: _selectedType,
+      reason: reason,
+      fileBytes: _proofFileBytes,
+      fileName: _proofFileName,
+    );
+
+    setState(() => _isSubmitting = false);
 
     showDialog(
       context: context,
@@ -119,7 +158,7 @@ class _AbsenManualPageState extends State<AbsenManualPage> {
           ],
         ),
         content: Text(
-          'Pengajuan $_selectedType Anda telah masuk ke sistem piket aktif SMK Negeri 8 Malang pada ${_timeService.formattedTime}.',
+          'Permohonan $_selectedType beserta bukti surat/foto Anda telah dikirimkan ke guru piket dan tersimpan di penyimpanan cloud.',
           style: GoogleFonts.poppins(fontSize: 13, color: AppColors.muted, height: 1.5),
         ),
         actions: [
@@ -546,6 +585,131 @@ class _AbsenManualPageState extends State<AbsenManualPage> {
           ),
         ),
 
+        const SizedBox(height: 20),
+
+        // Upload Bukti Surat / Foto
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Text(
+              'Upload Bukti Surat / Foto',
+              style: GoogleFonts.poppins(
+                fontSize: 13,
+                fontWeight: FontWeight.w600,
+                color: AppColors.ink,
+              ),
+            ),
+            Text(
+              'Surat Dokter / Izin Ortu',
+              style: GoogleFonts.poppins(
+                fontSize: 11,
+                color: AppColors.muted,
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 8),
+
+        if (_proofFileBytes != null) ...[
+          Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: Colors.green.shade300, width: 1.5),
+            ),
+            child: Row(
+              children: [
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(10),
+                  child: Image.memory(
+                    _proofFileBytes!,
+                    width: 50,
+                    height: 50,
+                    fit: BoxFit.cover,
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        _proofFileName ?? 'surat_bukti.jpg',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: GoogleFonts.poppins(
+                          fontSize: 12.5,
+                          fontWeight: FontWeight.w700,
+                          color: AppColors.ink,
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        'Siap diunggah ke Bucket Supabase',
+                        style: GoogleFonts.poppins(
+                          fontSize: 10.5,
+                          color: Colors.green.shade700,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                IconButton(
+                  icon: const Icon(Icons.cancel_rounded, color: Colors.red),
+                  onPressed: () {
+                    setState(() {
+                      _proofFileBytes = null;
+                      _proofFileName = null;
+                    });
+                  },
+                ),
+              ],
+            ),
+          ),
+        ] else ...[
+          Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: const Color(0xFFE8DFD8)),
+            ),
+            child: Row(
+              children: [
+                Expanded(
+                  child: OutlinedButton.icon(
+                    onPressed: () => _pickProof(ImageSource.camera),
+                    icon: const Icon(Icons.photo_camera_rounded, size: 18),
+                    label: const Text('Kamera'),
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: AppColors.maroon,
+                      side: const BorderSide(color: AppColors.maroon),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                      padding: const EdgeInsets.symmetric(vertical: 12),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: OutlinedButton.icon(
+                    onPressed: () => _pickProof(ImageSource.gallery),
+                    icon: const Icon(Icons.upload_file_rounded, size: 18),
+                    label: const Text('Pilih File/Foto'),
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: AppColors.ink,
+                      side: const BorderSide(color: Color(0xFFE8DFD8)),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                      padding: const EdgeInsets.symmetric(vertical: 12),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+
         const SizedBox(height: 24),
 
         // Submit Button
@@ -553,7 +717,7 @@ class _AbsenManualPageState extends State<AbsenManualPage> {
           width: double.infinity,
           height: 52,
           child: ElevatedButton(
-            onPressed: _submitManualAttendance,
+            onPressed: _isSubmitting ? null : _submitManualAttendance,
             style: ElevatedButton.styleFrom(
               backgroundColor: AppColors.maroon,
               foregroundColor: Colors.white,
@@ -562,13 +726,29 @@ class _AbsenManualPageState extends State<AbsenManualPage> {
                 borderRadius: BorderRadius.circular(16),
               ),
             ),
-            child: Text(
-              'Kirim Pengajuan',
-              style: GoogleFonts.poppins(
-                fontSize: 15,
-                fontWeight: FontWeight.w700,
-              ),
-            ),
+            child: _isSubmitting
+                ? const Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      SizedBox(
+                        width: 20,
+                        height: 20,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2.5,
+                          valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                        ),
+                      ),
+                      SizedBox(width: 12),
+                      Text('Mengirim & Mengunggah...'),
+                    ],
+                  )
+                : Text(
+                    'Kirim Pengajuan',
+                    style: GoogleFonts.poppins(
+                      fontSize: 15,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
           ),
         ),
       ],

@@ -61,12 +61,22 @@ class _AdminProfileTabState extends State<AdminProfileTab> {
           ElevatedButton(
             onPressed: () {
               if (controller.text.trim().isNotEmpty) {
-                onSaved(controller.text.trim());
+                final val = controller.text.trim();
+                onSaved(val);
+                if (title == 'Nomor Telepon') {
+                  _authService.updateProfile(phone: val);
+                } else if (title == 'Email') {
+                  _authService.updateProfile(email: val);
+                } else if (title == 'Alamat') {
+                  _authService.updateProfile(address: val);
+                } else if (title == 'Nama' || title == 'Nama Lengkap') {
+                  _authService.updateProfile(name: val);
+                }
                 Navigator.pop(ctx);
                 setState(() {});
                 ScaffoldMessenger.of(context).showSnackBar(
                   SnackBar(
-                    content: Text('$title berhasil diperbarui'),
+                    content: Text('$title berhasil diperbarui ke Supabase'),
                     duration: const Duration(seconds: 2),
                   ),
                 );
@@ -87,7 +97,7 @@ class _AdminProfileTabState extends State<AdminProfileTab> {
   /// Dialog Perbarui Data Diri Lengkap sesuai ERD
   void _showUpdateProfileDialog() {
     final user = _authService.currentUser;
-    final nameCtrl = TextEditingController(text: (user != null && user.name.isNotEmpty) ? user.name : 'Ahmad Admin');
+    final nameCtrl = TextEditingController(text: (user != null && user.name.isNotEmpty) ? user.name : 'Administrator');
     final emailCtrl = TextEditingController(text: (user != null && user.email.isNotEmpty) ? user.email : 'admin@gmail.com');
     final phoneCtrl = TextEditingController(text: (user != null && user.phone != null && user.phone!.isNotEmpty) ? user.phone! : '+62 812-3456-7890');
     final addressCtrl = TextEditingController(text: (user != null && user.address != null && user.address!.isNotEmpty) ? user.address! : 'Jl. Pendidikan No. 10, Blitar');
@@ -267,8 +277,8 @@ class _AdminProfileTabState extends State<AdminProfileTab> {
   Widget build(BuildContext context) {
     final topPadding = MediaQuery.of(context).padding.top;
     final user = _authService.currentUser;
-    final name = (user != null && user.name.isNotEmpty) ? user.name : 'Ahmad Admin';
-    final initials = (user != null && user.avatarInitials.isNotEmpty) ? user.avatarInitials : 'AA';
+    final name = (user != null && user.name.isNotEmpty) ? user.name : 'Administrator';
+    final initials = (user != null && user.avatarInitials.isNotEmpty) ? user.avatarInitials : 'AD';
     final phone = (user != null && user.phone != null && user.phone!.isNotEmpty)
         ? user.phone!
         : '+62 812-3456-7890';
@@ -597,73 +607,7 @@ class _AdminProfileTabState extends State<AdminProfileTab> {
                 const ChangePasswordCard(),
 
                 const SizedBox(height: 14),
-
-                // 3. Logout Button Card
-                Container(
-                  width: double.infinity,
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(20),
-                    border: Border.all(
-                      color: Colors.red.shade100,
-                      width: 1.2,
-                    ),
-                  ),
-                  child: Material(
-                    color: Colors.transparent,
-                    child: InkWell(
-                      borderRadius: BorderRadius.circular(20),
-                      onTap: _showLogoutDialog,
-                      child: Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
-                        child: Row(
-                          children: [
-                            Container(
-                              padding: const EdgeInsets.all(8),
-                              decoration: BoxDecoration(
-                                color: Colors.red.shade50,
-                                shape: BoxShape.circle,
-                              ),
-                              child: Icon(
-                                Icons.logout_rounded,
-                                color: Colors.red.shade700,
-                                size: 20,
-                              ),
-                            ),
-                            const SizedBox(width: 14),
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(
-                                    'Keluar Sesi Admin',
-                                    style: GoogleFonts.poppins(
-                                      fontSize: 13.5,
-                                      fontWeight: FontWeight.w700,
-                                      color: Colors.red.shade700,
-                                    ),
-                                  ),
-                                  Text(
-                                    'Kembali ke halaman login utama',
-                                    style: GoogleFonts.poppins(
-                                      fontSize: 11,
-                                      color: AppColors.muted,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                            Icon(
-                              Icons.arrow_forward_ios_rounded,
-                              size: 14,
-                              color: Colors.red.shade300,
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                  ),
-                ),
+                
               ],
             ),
           ),

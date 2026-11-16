@@ -5,6 +5,7 @@ import '../config/env.dart';
 import '../models/model_akun.dart';
 import '../models/model_user.dart';
 import 'auth_service.dart';
+import 'location_service.dart';
 
 class ClassInfoItem {
   final String id;
@@ -255,27 +256,30 @@ class SupabaseService {
           // Role & profile info
           final roleStr = userData['role']?.toString().toLowerCase() ?? 'siswa';
           final userId = userData['id_user'].toString();
-          String name = userData['username']?.toString() ?? 'Pengguna';
+          String name = userData['nama']?.toString() ?? userData['username']?.toString() ?? 'Pengguna';
           String? info;
-          String? phone;
-          String? address;
+          String? phone = userData['no_hp']?.toString();
+          String? address = userData['alamat']?.toString();
           UserRole role = UserRole.siswa;
 
           if (roleStr == 'admin') {
             role = UserRole.admin;
-            name = 'Administrator';
+            name = (userData['nama'] != null && userData['nama'].toString().isNotEmpty)
+                ? userData['nama'].toString()
+                : 'Administrator';
             info = 'Super Administrator';
           } else if (roleStr == 'guru') {
             role = UserRole.guru;
             final g = await c
                 .from('guru')
-                .select('nama, mapel, nip, no_hp, email')
+                .select('nama, mapel, nip, no_hp, email, alamat')
                 .eq('user_id', userId)
                 .maybeSingle();
             if (g != null) {
               name = g['nama'] ?? name;
               info = '${g['mapel'] ?? 'Guru'} • ${g['nip'] ?? ''}';
-              phone = g['no_hp']?.toString();
+              phone = g['no_hp']?.toString() ?? phone;
+              address = g['alamat']?.toString() ?? address;
             }
           } else {
             role = UserRole.siswa;
@@ -289,8 +293,8 @@ class SupabaseService {
               final kMap = s['kelas'] as Map<String, dynamic>?;
               final kName = kMap != null ? '${kMap['tingkat'] ?? 'XII'} ${kMap['jurusan'] ?? 'RPL D'}' : 'XII RPL D';
               info = '$kName • ${s['jurusan'] ?? 'Rekayasa Perangkat Lunak'}';
-              phone = s['no_hp']?.toString();
-              address = s['alamat']?.toString();
+              phone = s['no_hp']?.toString() ?? phone;
+              address = s['alamat']?.toString() ?? address;
             }
           }
 
@@ -486,13 +490,18 @@ class SupabaseService {
     final c = client;
     if (c != null) {
       try {
-        // 1. Update users table (username)
-        if (email != null && email.isNotEmpty) {
-          try {
-            await c.from('users').update({
-              'username': email.trim(),
-            }).eq('id_user', userId);
-          } catch (_) {}
+        // 1. Update users table with name, phone, address, and username
+        final userUpdates = <String, dynamic>{
+          'nama': name,
+          if (phone != null) 'no_hp': phone,
+          if (address != null) 'alamat': address,
+          if (email != null && email.trim().isNotEmpty) 'username': email.trim(),
+        };
+
+        try {
+          await c.from('users').update(userUpdates).eq('id_user', userId);
+        } catch (uErr) {
+          if (kDebugMode) print('Users profile update error: $uErr');
         }
 
         // 2. If guru, update guru table
@@ -501,6 +510,7 @@ class SupabaseService {
             'nama': name,
             if (phone != null) 'no_hp': phone,
             if (email != null) 'email': email,
+            if (address != null) 'alamat': address,
           }).eq('user_id', userId);
         } catch (_) {}
 
@@ -1059,7 +1069,7 @@ class SupabaseService {
     return [];
   }
 
-  /// Record automatic or camera attendance
+  /// Record automatic or camera attendance (1 time per day)
   Future<bool> recordAttendance({
     required String siswaId,
     required DateTime time,
@@ -1069,6 +1079,7 @@ class SupabaseService {
     required String status,
     required String metode,
     String? photoUrl,
+    Uint8List? photoBytes,
   }) async {
     final c = client;
     if (c != null) {
@@ -1076,16 +1087,71 @@ class SupabaseService {
         String realSiswaId = siswaId;
         final s = await c
             .from('siswa')
-            .select('id_siswa')
+            .select('id_siswa, nama_siswa')
             .or('user_id.eq.$siswaId,id_siswa.eq.$siswaId')
             .maybeSingle();
         if (s != null && s['id_siswa'] != null) {
           realSiswaId = s['id_siswa'].toString();
+        } else {
+          final currentName = AuthService().currentUser?.name;
+          if (currentName != null && currentName.isNotEmpty) {
+            final s2 = await c
+                .from('siswa')
+                .select('id_siswa')
+                .ilike('nama_siswa', currentName)
+                .maybeSingle();
+            if (s2 != null && s2['id_siswa'] != null) {
+              realSiswaId = s2['id_siswa'].toString();
+            }
+          }
         }
 
+        final todayStr = time.toIso8601String().split('T')[0];
+
+        // 1. Check if attendance already recorded today (Enforce 1x per day)
+        final existing = await c
+            .from('absensi')
+            .select('id_absen')
+            .eq('siswa_id', realSiswaId)
+            .eq('tanggal', todayStr)
+            .maybeSingle();
+
+        if (existing != null) {
+          if (kDebugMode) print('Siswa $realSiswaId sudah absen hari ini.');
+          return false;
+        }
+
+        // 2. Upload photo bytes to Storage bucket 'bukti-absen'
+        String? finalPhotoUrl = photoUrl;
+        if (photoBytes != null && photoBytes.isNotEmpty) {
+          try {
+            final fileName = 'absen_${realSiswaId}_${time.millisecondsSinceEpoch}.jpg';
+            final storagePath = '$realSiswaId/$fileName';
+
+            await c.storage
+                .from('bukti-absen')
+                .uploadBinary(
+                  storagePath,
+                  photoBytes,
+                  fileOptions: const FileOptions(
+                    contentType: 'image/jpeg',
+                    upsert: true,
+                  ),
+                );
+
+            finalPhotoUrl = c.storage
+                .from('bukti-absen')
+                .getPublicUrl(storagePath);
+            if (kDebugMode) print('Photo uploaded to bucket: $finalPhotoUrl');
+          } catch (uploadErr) {
+            if (kDebugMode) print('Photo upload error to Supabase Storage: $uploadErr');
+          }
+        }
+
+        // 3. Insert into absensi table
         final res = await c.from('absensi').insert({
           'siswa_id': realSiswaId,
-          'tanggal': time.toIso8601String().split('T')[0],
+          'tanggal': todayStr,
           'jam_absen':
               '${time.hour.toString().padLeft(2, '0')}:${time.minute.toString().padLeft(2, '0')}:${time.second.toString().padLeft(2, '0')}',
           'status': status.toLowerCase(),
@@ -1095,11 +1161,17 @@ class SupabaseService {
           'lokasi': location,
         }).select('id_absen').single();
 
-        if (photoUrl != null && photoUrl.isNotEmpty) {
+        final absenId = res['id_absen']?.toString();
+
+        // 4. Record to bukti_absen table
+        if (finalPhotoUrl != null &&
+            finalPhotoUrl.isNotEmpty &&
+            !finalPhotoUrl.startsWith('blob:') &&
+            absenId != null) {
           try {
             await c.from('bukti_absen').insert({
-              'absen_id': res['id_absen'],
-              'file_url': photoUrl,
+              'absen_id': absenId,
+              'file_url': finalPhotoUrl,
               'file_type': 'image/jpeg',
             });
           } catch (_) {}
@@ -1107,17 +1179,20 @@ class SupabaseService {
         return true;
       } catch (e) {
         if (kDebugMode) print('Record attendance error: $e');
+        return false;
       }
     }
     return true;
   }
 
-  /// Submit manual attendance submission (Izin / Sakit)
+  /// Submit manual attendance submission (Izin / Sakit) with optional file/proof
   Future<bool> submitManualAttendance({
     required String siswaId,
     required String type,
     required String reason,
     required DateTime date,
+    Uint8List? fileBytes,
+    String? fileName,
   }) async {
     final c = client;
     if (c != null) {
@@ -1130,6 +1205,41 @@ class SupabaseService {
             .maybeSingle();
         if (s != null && s['id_siswa'] != null) {
           realSiswaId = s['id_siswa'].toString();
+        } else {
+          final currentName = AuthService().currentUser?.name;
+          if (currentName != null && currentName.isNotEmpty) {
+            final s2 = await c
+                .from('siswa')
+                .select('id_siswa')
+                .ilike('nama_siswa', currentName)
+                .maybeSingle();
+            if (s2 != null && s2['id_siswa'] != null) {
+              realSiswaId = s2['id_siswa'].toString();
+            }
+          }
+        }
+
+        // Upload letter or photo proof to bucket 'bukti-absen' if provided
+        String? uploadedFileUrl;
+        if (fileBytes != null && fileBytes.isNotEmpty) {
+          try {
+            final safeName = fileName ?? 'surat_${DateTime.now().millisecondsSinceEpoch}.jpg';
+            final storagePath = 'manual/$realSiswaId/$safeName';
+
+            await c.storage.from('bukti-absen').uploadBinary(
+              storagePath,
+              fileBytes,
+              fileOptions: const FileOptions(
+                contentType: 'image/jpeg',
+                upsert: true,
+              ),
+            );
+
+            uploadedFileUrl = c.storage.from('bukti-absen').getPublicUrl(storagePath);
+            if (kDebugMode) print('Manual proof file uploaded: $uploadedFileUrl');
+          } catch (uploadErr) {
+            if (kDebugMode) print('Manual file upload error: $uploadErr');
+          }
         }
 
         await c.from('pengajuan_absen').insert({
@@ -1138,10 +1248,356 @@ class SupabaseService {
           'jenis': type.toLowerCase() == 'sakit' ? 'sakit' : 'izin',
           'alasan': reason,
           'status': 'menunggu',
+          if (uploadedFileUrl != null) 'file_url': uploadedFileUrl,
         });
         return true;
       } catch (e) {
         if (kDebugMode) print('Manual attendance submission: $e');
+        return false;
+      }
+    }
+    return true;
+  }
+
+  /// Reset today's attendance (can be targeted to one student or all students)
+  Future<bool> resetAttendanceForToday({String? studentId}) async {
+    final c = client;
+    if (c != null) {
+      try {
+        final todayStr = DateTime.now().toIso8601String().split('T')[0];
+
+        if (studentId != null && studentId.isNotEmpty) {
+          String realId = studentId;
+          final s = await c
+              .from('siswa')
+              .select('id_siswa')
+              .or('user_id.eq.$studentId,id_siswa.eq.$studentId')
+              .maybeSingle();
+          if (s != null && s['id_siswa'] != null) {
+            realId = s['id_siswa'].toString();
+          }
+
+          await c
+              .from('absensi')
+              .delete()
+              .eq('siswa_id', realId)
+              .eq('tanggal', todayStr);
+
+          await c
+              .from('pengajuan_absen')
+              .delete()
+              .eq('siswa_id', realId)
+              .eq('tanggal_absen', todayStr);
+        } else {
+          await c.from('absensi').delete().eq('tanggal', todayStr);
+          await c.from('pengajuan_absen').delete().eq('tanggal_absen', todayStr);
+        }
+        return true;
+      } catch (e) {
+        if (kDebugMode) print('Reset attendance error: $e');
+        return false;
+      }
+    }
+    return true;
+  }
+
+  /// Check student's today attendance status from Supabase
+  Future<Map<String, dynamic>?> getTodayStudentAttendance(String studentIdOrUserId) async {
+    final c = client;
+    if (c != null) {
+      try {
+        final todayStr = DateTime.now().toIso8601String().split('T')[0];
+        String realId = studentIdOrUserId;
+        final s = await c
+            .from('siswa')
+            .select('id_siswa')
+            .or('user_id.eq.$studentIdOrUserId,id_siswa.eq.$studentIdOrUserId')
+            .maybeSingle();
+        if (s != null && s['id_siswa'] != null) {
+          realId = s['id_siswa'].toString();
+        }
+
+        // Check absensi table
+        final att = await c
+            .from('absensi')
+            .select('id_absen, jam_absen, status, metode, lokasi, latitude, longitude')
+            .eq('siswa_id', realId)
+            .eq('tanggal', todayStr)
+            .maybeSingle();
+
+        if (att != null) {
+          return {
+            'hasAttended': true,
+            'status': att['status']?.toString() ?? 'hadir',
+            'time': att['jam_absen']?.toString() ?? '',
+            'method': att['metode']?.toString() ?? 'kamera',
+            'location': att['lokasi']?.toString() ?? 'SMK Negeri 8 Malang',
+          };
+        }
+
+        // Check pengajuan_absen table (Izin/Sakit)
+        final p = await c
+            .from('pengajuan_absen')
+            .select('id_pengajuan, jenis, status, alasan, file_url')
+            .eq('siswa_id', realId)
+            .eq('tanggal_absen', todayStr)
+            .maybeSingle();
+
+        if (p != null) {
+          final rawJenis = p['jenis']?.toString().toLowerCase() ?? 'izin';
+          final pStatus = p['status']?.toString().toLowerCase() ?? 'menunggu';
+          return {
+            'hasAttended': true,
+            'status': pStatus == 'disetujui' ? rawJenis : 'Menunggu Konfirmasi ($rawJenis)',
+            'time': '—',
+            'method': 'manual',
+            'location': 'Pengajuan Surat',
+            'fileUrl': p['file_url']?.toString(),
+          };
+        }
+      } catch (e) {
+        if (kDebugMode) print('Check today student attendance error: $e');
+      }
+    }
+    return null;
+  }
+
+  /// Get school configuration (coordinates, address, radius)
+  Future<Map<String, dynamic>> getSchoolSettings() async {
+    final c = client;
+    if (c != null) {
+      try {
+        final data = await c
+            .from('sekolah')
+            .select('nama_sekolah, alamat, latitude, longitude, radius_meter')
+            .limit(1)
+            .maybeSingle();
+
+        if (data != null) {
+          final lat = (data['latitude'] as num?)?.toDouble() ?? LocationService.defaultSchoolLatitude;
+          final lng = (data['longitude'] as num?)?.toDouble() ?? LocationService.defaultSchoolLongitude;
+          final radius = (data['radius_meter'] as num?)?.toDouble() ?? LocationService.defaultMaxRadiusMeters;
+          final name = data['nama_sekolah']?.toString() ?? 'SMK Negeri 8 Malang';
+          final address = data['alamat']?.toString() ?? 'Jl. Teluk Pacitan, Malang';
+
+          LocationService().setSchoolConfig(
+            lat: lat,
+            lng: lng,
+            radius: radius,
+            name: name,
+            address: address,
+          );
+
+          return {
+            'name': name,
+            'address': address,
+            'latitude': lat,
+            'longitude': lng,
+            'radius': radius,
+          };
+        }
+      } catch (e) {
+        if (kDebugMode) print('Get school settings error: $e');
+      }
+    }
+    return {
+      'name': LocationService.schoolName,
+      'address': LocationService.schoolAddress,
+      'latitude': LocationService.schoolLatitude,
+      'longitude': LocationService.schoolLongitude,
+      'radius': LocationService.maxRadiusMeters,
+    };
+  }
+
+  /// Update school radius & location in Supabase
+  Future<bool> updateSchoolSettings({
+    required double latitude,
+    required double longitude,
+    required double radius,
+    String? address,
+    String? name,
+  }) async {
+    final c = client;
+    if (c != null) {
+      try {
+        final schoolId = await getSchoolId();
+        await c.from('sekolah').update({
+          'latitude': latitude,
+          'longitude': longitude,
+          'radius_meter': radius,
+          if (address != null && address.isNotEmpty) 'alamat': address,
+          if (name != null && name.isNotEmpty) 'nama_sekolah': name,
+        }).eq('id_sekolah', schoolId);
+
+        LocationService().setSchoolConfig(
+          lat: latitude,
+          lng: longitude,
+          radius: radius,
+          name: name,
+          address: address,
+        );
+
+        return true;
+      } catch (e) {
+        if (kDebugMode) print('Update school settings error: $e');
+        return false;
+      }
+    }
+    return true;
+  }
+
+  // ===========================================================================
+  // KELAS CRUD & WALI KELAS & ANGGOTA KELAS
+  // ===========================================================================
+
+  Future<List<Map<String, dynamic>>> getClassesDetailed() async {
+    final c = client;
+    if (c != null) {
+      try {
+        final data = await c
+            .from('kelas')
+            .select('id_kelas, tingkat, jurusan, guru_id, guru(id_guru, nama, nip), siswa(id_siswa)')
+            .order('tingkat', ascending: true);
+
+        return data.map((row) {
+          final gMap = row['guru'] as Map<String, dynamic>?;
+          final sList = row['siswa'] as List?;
+          return {
+            'id': row['id_kelas'].toString(),
+            'tingkat': row['tingkat']?.toString() ?? 'XII',
+            'jurusan': row['jurusan']?.toString() ?? '',
+            'className': '${row['tingkat'] ?? ''} ${row['jurusan'] ?? ''}'.trim(),
+            'guruId': row['guru_id']?.toString(),
+            'waliKelas': gMap?['nama']?.toString() ?? 'Belum Ditentukan',
+            'totalSiswa': sList?.length ?? 0,
+          };
+        }).toList();
+      } catch (e) {
+        if (kDebugMode) print('Get detailed classes error: $e');
+      }
+    }
+    return [];
+  }
+
+  Future<bool> createClass({
+    required String tingkat,
+    required String jurusan,
+    String? guruId,
+  }) async {
+    final c = client;
+    if (c != null) {
+      try {
+        final schoolId = await getSchoolId();
+        await c.from('kelas').insert({
+          'sekolah_id': schoolId,
+          'tingkat': tingkat.trim(),
+          'jurusan': jurusan.trim(),
+          if (guruId != null && guruId.isNotEmpty) 'guru_id': guruId,
+        });
+        return true;
+      } catch (e) {
+        if (kDebugMode) print('Create class error: $e');
+        return false;
+      }
+    }
+    return true;
+  }
+
+  Future<bool> updateClass({
+    required String id,
+    required String tingkat,
+    required String jurusan,
+    String? guruId,
+  }) async {
+    final c = client;
+    if (c != null) {
+      try {
+        await c.from('kelas').update({
+          'tingkat': tingkat.trim(),
+          'jurusan': jurusan.trim(),
+          'guru_id': (guruId != null && guruId.isNotEmpty) ? guruId : null,
+        }).eq('id_kelas', id);
+        return true;
+      } catch (e) {
+        if (kDebugMode) print('Update class error: $e');
+        return false;
+      }
+    }
+    return true;
+  }
+
+  Future<bool> deleteClass(String id) async {
+    final c = client;
+    if (c != null) {
+      try {
+        await c.from('kelas').delete().eq('id_kelas', id);
+        return true;
+      } catch (e) {
+        if (kDebugMode) print('Delete class error: $e');
+        return false;
+      }
+    }
+    return true;
+  }
+
+  Future<List<Map<String, dynamic>>> getClassStudents(String classId) async {
+    final c = client;
+    if (c != null) {
+      try {
+        final data = await c
+            .from('siswa')
+            .select('id_siswa, nama_siswa, nisn, nis, jurusan')
+            .eq('kelas_id', classId)
+            .order('nama_siswa', ascending: true);
+
+        return List<Map<String, dynamic>>.from(data);
+      } catch (e) {
+        if (kDebugMode) print('Get class students error: $e');
+      }
+    }
+    return [];
+  }
+
+  Future<List<Map<String, dynamic>>> getAvailableStudents() async {
+    final c = client;
+    if (c != null) {
+      try {
+        final data = await c
+            .from('siswa')
+            .select('id_siswa, nama_siswa, nisn, kelas_id, kelas(tingkat, jurusan)')
+            .order('nama_siswa', ascending: true);
+
+        return List<Map<String, dynamic>>.from(data);
+      } catch (e) {
+        if (kDebugMode) print('Get available students error: $e');
+      }
+    }
+    return [];
+  }
+
+  Future<bool> assignStudentToClass(String studentId, String classId) async {
+    final c = client;
+    if (c != null) {
+      try {
+        await c.from('siswa').update({'kelas_id': classId}).eq('id_siswa', studentId);
+        return true;
+      } catch (e) {
+        if (kDebugMode) print('Assign student to class error: $e');
+        return false;
+      }
+    }
+    return true;
+  }
+
+  Future<bool> removeStudentFromClass(String studentId) async {
+    final c = client;
+    if (c != null) {
+      try {
+        await c.from('siswa').update({'kelas_id': null}).eq('id_siswa', studentId);
+        return true;
+      } catch (e) {
+        if (kDebugMode) print('Remove student from class error: $e');
+        return false;
       }
     }
     return true;
@@ -1190,10 +1646,10 @@ class SupabaseService {
       try {
         final data = await c
             .from('pengajuan_absen')
-            .select('id_pengajuan, siswa_id, tanggal_absen, jenis, alasan, status, catatan_guru, siswa(nama_siswa, kelas(tingkat, jurusan))')
+            .select('id_pengajuan, siswa_id, tanggal_absen, jenis, alasan, status, catatan_guru, file_url, siswa(nama_siswa, kelas(tingkat, jurusan))')
             .order('created_at', ascending: false);
 
-        if (data is List && data.isNotEmpty) {
+        if (data.isNotEmpty) {
           return data.map((row) {
             final sMap = row['siswa'] as Map<String, dynamic>?;
             final studentName = sMap?['nama_siswa']?.toString() ?? 'Siswa';
@@ -1224,6 +1680,7 @@ class SupabaseService {
               reason: row['alasan']?.toString() ?? '',
               status: statusStr,
               teacherNotes: row['catatan_guru']?.toString(),
+              photoUrl: row['file_url']?.toString(),
             );
           }).toList();
         }
@@ -1319,9 +1776,24 @@ class SupabaseService {
               .order('tanggal', ascending: false)
               .limit(30);
 
-          if (list is List) {
-            return list.cast<Map<String, dynamic>>();
+          // Enrich each record with photo_url from bukti_absen
+          final enriched = <Map<String, dynamic>>[];
+          for (final row in list) {
+            final absenId = row['id_absen']?.toString();
+            String? photoUrl;
+            if (absenId != null) {
+              try {
+                final bukti = await c
+                    .from('bukti_absen')
+                    .select('file_url')
+                    .eq('absen_id', absenId)
+                    .maybeSingle();
+                photoUrl = bukti?['file_url']?.toString();
+              } catch (_) {}
+            }
+            enriched.add({...row, 'photo_url': photoUrl});
           }
+          return enriched;
         }
       } catch (e) {
         if (kDebugMode) print('Student history error: $e');

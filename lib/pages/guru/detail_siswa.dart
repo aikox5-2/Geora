@@ -25,7 +25,7 @@ class DetailSiswaPage extends StatefulWidget {
     required this.initials,
     this.className = 'XII RPL D',
     this.time = '— WIB',
-    this.status = 'Hadir',
+    this.status = 'Belum Absen',
     this.nisn = '0000000000',
     this.location,
     this.latitude,
@@ -83,7 +83,7 @@ class _DetailSiswaPageState extends State<DetailSiswaPage> {
     }
   }
 
-  void _showPhotoProof(BuildContext context, String date, String loc, String time) {
+  void _showPhotoProof(BuildContext context, String date, String loc, String time, {String? photoUrl}) {
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
@@ -133,64 +133,89 @@ class _DetailSiswaPageState extends State<DetailSiswaPage> {
                 child: Stack(
                   alignment: Alignment.center,
                   children: [
-                    Image.asset(
-                      'asset/maps_smkn8.jpg',
-                      width: double.infinity,
-                      height: double.infinity,
-                      fit: BoxFit.cover,
-                      errorBuilder: (context, error, stackTrace) => const SizedBox(),
-                    ),
-                    Container(
-                      color: Colors.black.withValues(alpha: 0.35),
-                    ),
-                    Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Container(
-                          padding: const EdgeInsets.all(12),
-                          decoration: BoxDecoration(
-                            color: Colors.white.withValues(alpha: 0.9),
-                            shape: BoxShape.circle,
-                          ),
-                          child: const Icon(
-                            Icons.face_retouching_natural_rounded,
-                            size: 48,
-                            color: AppColors.maroon,
-                          ),
-                        ),
-                        const SizedBox(height: 10),
-                        Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-                          decoration: BoxDecoration(
-                            color: Colors.white.withValues(alpha: 0.9),
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                          child: Text(
-                            'Geotag & Face Verified',
-                            style: GoogleFonts.poppins(
-                              fontWeight: FontWeight.w700,
-                              fontSize: 12,
-                              color: AppColors.maroon,
+                    // Tampilkan foto nyata dari bucket jika ada, fallback ke peta satelit
+                    if (photoUrl != null && photoUrl.isNotEmpty)
+                      Image.network(
+                        photoUrl,
+                        width: double.infinity,
+                        height: double.infinity,
+                        fit: BoxFit.cover,
+                        loadingBuilder: (ctx, child, progress) {
+                          if (progress == null) return child;
+                          return Container(
+                            color: const Color(0xFFF0E5DC),
+                            child: const Center(
+                              child: CircularProgressIndicator(
+                                color: AppColors.maroon,
+                                strokeWidth: 2,
+                              ),
                             ),
+                          );
+                        },
+                        errorBuilder: (ctx, e, st) => Image.asset(
+                          'asset/maps_smkn8.jpg',
+                          width: double.infinity,
+                          height: double.infinity,
+                          fit: BoxFit.cover,
+                        ),
+                      )
+                    else
+                      Image.asset(
+                        'asset/maps_smkn8.jpg',
+                        width: double.infinity,
+                        height: double.infinity,
+                        fit: BoxFit.cover,
+                        errorBuilder: (context, error, stackTrace) => const SizedBox(),
+                      ),
+                    // Overlay gelap tipis
+                    Container(
+                      color: Colors.black.withValues(alpha: photoUrl != null ? 0.25 : 0.35),
+                    ),
+                    // Watermark info di bawah
+                    Positioned(
+                      bottom: 0,
+                      left: 0,
+                      right: 0,
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                        decoration: BoxDecoration(
+                          gradient: LinearGradient(
+                            begin: Alignment.topCenter,
+                            end: Alignment.bottomCenter,
+                            colors: [
+                              Colors.transparent,
+                              Colors.black.withValues(alpha: 0.7),
+                            ],
                           ),
                         ),
-                        const SizedBox(height: 4),
-                        Text(
-                          loc,
-                          style: GoogleFonts.poppins(
-                            fontSize: 11,
-                            color: Colors.white,
-                            fontWeight: FontWeight.w500,
-                          ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              children: [
+                                const Icon(Icons.verified_rounded, color: Colors.greenAccent, size: 14),
+                                const SizedBox(width: 4),
+                                Text(
+                                  'Geotag & Face Verified',
+                                  style: GoogleFonts.poppins(
+                                    fontWeight: FontWeight.w700,
+                                    fontSize: 11,
+                                    color: Colors.white,
+                                  ),
+                                ),
+                              ],
+                            ),
+                            Text(
+                              '📍 $loc',
+                              style: GoogleFonts.poppins(fontSize: 10, color: Colors.white70),
+                            ),
+                            Text(
+                              '🕒 $date • $time',
+                              style: GoogleFonts.poppins(fontSize: 10, color: Colors.white70),
+                            ),
+                          ],
                         ),
-                        Text(
-                          '$date • $time',
-                          style: GoogleFonts.poppins(
-                            fontSize: 10.5,
-                            color: Colors.white70,
-                          ),
-                        ),
-                      ],
+                      ),
                     ),
                   ],
                 ),
@@ -473,6 +498,7 @@ class _DetailSiswaPageState extends State<DetailSiswaPage> {
 
                         final tgl = h['tanggal']?.toString() ?? '-';
                         final jm = h['jam_absen']?.toString() ?? '-';
+                        final hUrl = h['photo_url']?.toString();
 
                         return Padding(
                           padding: const EdgeInsets.only(bottom: 10.0),
@@ -483,6 +509,7 @@ class _DetailSiswaPageState extends State<DetailSiswaPage> {
                             statusColor: c,
                             time: jm.isNotEmpty ? '$jm WIB' : '—',
                             hasPhoto: stat.toLowerCase() == 'hadir' || stat.toLowerCase() == 'terlambat',
+                            photoUrl: hUrl,
                           ),
                         );
                       }),
@@ -544,6 +571,7 @@ class _DetailSiswaPageState extends State<DetailSiswaPage> {
     required Color statusColor,
     required String time,
     required bool hasPhoto,
+    String? photoUrl,
   }) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 15),
@@ -596,7 +624,7 @@ class _DetailSiswaPageState extends State<DetailSiswaPage> {
           ),
           if (hasPhoto)
             GestureDetector(
-              onTap: () => _showPhotoProof(context, date, 'SMK Negeri 8 Malang', time),
+              onTap: () => _showPhotoProof(context, date, 'SMK Negeri 8 Malang', time, photoUrl: photoUrl),
               child: Container(
                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                 decoration: BoxDecoration(

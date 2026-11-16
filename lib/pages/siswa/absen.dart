@@ -24,6 +24,7 @@ class _SiswaAttendanceHubTabState extends State<SiswaAttendanceHubTab> {
     super.initState();
     _timeService.addListener(_onServiceUpdate);
     _stateService.addListener(_onServiceUpdate);
+    _stateService.syncTodayAttendance();
   }
 
   @override
@@ -288,16 +289,28 @@ class _SiswaAttendanceHubTabState extends State<SiswaAttendanceHubTab> {
                   width: double.infinity,
                   height: 50,
                   child: ElevatedButton(
-                    onPressed: () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (_) => const SiswaAutoAttendancePage(),
-                        ),
-                      );
-                    },
+                    onPressed: _stateService.isAlreadyCheckedInToday
+                        ? () {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(
+                                content: Text('Anda sudah melakukan absensi hari ini ($statusToday). Absensi direset jam 00.00 malam.'),
+                                backgroundColor: AppColors.maroon,
+                                duration: const Duration(seconds: 3),
+                              ),
+                            );
+                          }
+                        : () {
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (_) => const SiswaAutoAttendancePage(),
+                              ),
+                            );
+                          },
                     style: ElevatedButton.styleFrom(
-                      backgroundColor: AppColors.maroon,
+                      backgroundColor: _stateService.isAlreadyCheckedInToday
+                          ? Colors.grey.shade400
+                          : AppColors.maroon,
                       foregroundColor: Colors.white,
                       elevation: 0,
                       shape: RoundedRectangleBorder(
@@ -305,7 +318,9 @@ class _SiswaAttendanceHubTabState extends State<SiswaAttendanceHubTab> {
                       ),
                     ),
                     child: Text(
-                      'Absen Sekarang',
+                      _stateService.isAlreadyCheckedInToday
+                          ? 'Sudah Absen ($statusToday)'
+                          : 'Absen Sekarang',
                       style: GoogleFonts.poppins(
                         fontSize: 15,
                         fontWeight: FontWeight.w700,

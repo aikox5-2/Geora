@@ -69,6 +69,8 @@ class _SiswaProfileTabState extends State<SiswaProfileTab> {
                   _authService.updateProfile(email: val);
                 } else if (title == 'Alamat') {
                   _authService.updateProfile(address: val);
+                } else if (title == 'Nama' || title == 'Nama Lengkap') {
+                  _authService.updateProfile(name: val);
                 }
                 Navigator.pop(ctx);
                 setState(() {});
@@ -583,74 +585,7 @@ class _SiswaProfileTabState extends State<SiswaProfileTab> {
                 const SizedBox(height: 20),
                 const ChangePasswordCard(),
                 const SizedBox(height: 14),
-
-                // Keluar Sesi Button
-                Container(
-                  width: double.infinity,
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(20),
-                    border: Border.all(
-                      color: Colors.red.shade100,
-                      width: 1.2,
-                    ),
-                  ),
-                  child: Material(
-                    color: Colors.transparent,
-                    child: InkWell(
-                      borderRadius: BorderRadius.circular(20),
-                      onTap: _showLogoutDialog,
-                      child: Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
-                        child: Row(
-                          children: [
-                            Container(
-                              padding: const EdgeInsets.all(8),
-                              decoration: BoxDecoration(
-                                color: Colors.red.shade50,
-                                shape: BoxShape.circle,
-                              ),
-                              child: Icon(
-                                Icons.logout_rounded,
-                                color: Colors.red.shade700,
-                                size: 20,
-                              ),
-                            ),
-                            const SizedBox(width: 14),
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(
-                                    'Keluar Sesi Siswa',
-                                    style: GoogleFonts.poppins(
-                                      fontSize: 13.5,
-                                      fontWeight: FontWeight.w700,
-                                      color: Colors.red.shade700,
-                                    ),
-                                  ),
-                                  Text(
-                                    'Kembali ke halaman login utama',
-                                    style: GoogleFonts.poppins(
-                                      fontSize: 11,
-                                      color: AppColors.muted,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                            Icon(
-                              Icons.arrow_forward_ios_rounded,
-                              size: 14,
-                              color: Colors.red.shade300,
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 24),
+                
               ],
             ),
           ),

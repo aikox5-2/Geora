@@ -6,7 +6,9 @@ import '../../theme/app_colors.dart';
 import '../../widgets/header.dart';
 import 'kelola_admin.dart';
 import 'kelola_guru.dart';
+import 'kelola_kelas.dart';
 import 'kelola_siswa.dart';
+import 'pengaturan_sekolah.dart';
 
 class AdminDashboardTab extends StatefulWidget {
   final Function(int)? onNavigateTab;
@@ -225,6 +227,53 @@ class _AdminDashboardTabState extends State<AdminDashboardTab>
                       ),
                     );
                   },
+                ),
+
+                const SizedBox(height: 24),
+
+                // 4. Konfigurasi & Kelas
+                Text(
+                  'Konfigurasi & Kelas',
+                  style: GoogleFonts.poppins(
+                    fontSize: 18,
+                    fontWeight: FontWeight.w800,
+                    color: AppColors.ink,
+                  ),
+                ),
+                const SizedBox(height: 12),
+
+                Row(
+                  children: [
+                    Expanded(
+                      child: _buildAccountManageCard(
+                        title: 'Kelas',
+                        subtitle: 'CRUD Kelas & Wali Kelas',
+                        onTap: () {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (_) => const ManageKelasPage(),
+                            ),
+                          );
+                        },
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: _buildAccountManageCard(
+                        title: 'Radius GPS',
+                        subtitle: 'Atur Lokasi & Radius Absen',
+                        onTap: () {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (_) => const SchoolRadiusSettingsPage(),
+                            ),
+                          );
+                        },
+                      ),
+                    ),
+                  ],
                 ),
 
                 const SizedBox(height: 20),

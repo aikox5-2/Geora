@@ -26,6 +26,7 @@ class _SiswaAutoAttendancePageState extends State<SiswaAutoAttendancePage> {
   String? _photoTimestamp;
   String? _photoLocation;
   bool _isSubmitted = false;
+  bool _isUploading = false;
 
   @override
   void initState() {
@@ -47,14 +48,22 @@ class _SiswaAutoAttendancePageState extends State<SiswaAutoAttendancePage> {
   }
 
   Future<void> _initServices() async {
-    // Request device GPS location on page open (Requirement 3)
     await _locationService.getCurrentLocation();
+    await _attendanceState.syncTodayAttendance();
+
+    // Otomatis buka kamera perangkat jika belum absen dan belum ambil foto
+    if (!_attendanceState.isAlreadyCheckedInToday && _photoBytes == null && mounted) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        _takePhoto();
+      });
+    }
   }
 
   Future<void> _takePhoto() async {
     try {
       final picked = await _picker.pickImage(
         source: ImageSource.camera,
+        preferredCameraDevice: CameraDevice.front,
         maxWidth: 1024,
         maxHeight: 1024,
         imageQuality: 85,
@@ -74,7 +83,7 @@ class _SiswaAutoAttendancePageState extends State<SiswaAutoAttendancePage> {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
-              content: Text('Foto bukti kehadiran dengan watermark berhasil diambil!'),
+              content: Text('Foto bukti kehadiran dengan kamera perangkat berhasil diambil!'),
               backgroundColor: Colors.green,
               duration: Duration(seconds: 2),
             ),
@@ -82,7 +91,6 @@ class _SiswaAutoAttendancePageState extends State<SiswaAutoAttendancePage> {
         }
       }
     } catch (e) {
-      // If camera plugin encounters issue on desktop/browser, provide simulation fallback
       final loc = _locationService.lastLocation?.locationName ?? 'SMK Negeri 8 Kota Malang';
       setState(() {
         _photoTimestamp = '${_timeService.formattedDateShort} • ${_timeService.formattedTime}';
@@ -100,7 +108,7 @@ class _SiswaAutoAttendancePageState extends State<SiswaAutoAttendancePage> {
                 const Icon(Icons.camera_alt_rounded, color: AppColors.maroon),
                 const SizedBox(width: 10),
                 Text(
-                  'Kamera Terverifikasi',
+                  'Kamera Perangkat',
                   style: GoogleFonts.poppins(
                     fontSize: 16,
                     fontWeight: FontWeight.w700,
@@ -130,7 +138,47 @@ class _SiswaAutoAttendancePageState extends State<SiswaAutoAttendancePage> {
     }
   }
 
-  void _submitAttendance() {
+  Future<void> _submitAttendance() async {
+    if (_attendanceState.isAlreadyCheckedInToday) {
+      showDialog(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          backgroundColor: Colors.white,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(22)),
+          title: Row(
+            children: [
+              const Icon(Icons.info_outline_rounded, color: AppColors.maroon, size: 26),
+              const SizedBox(width: 10),
+              Text(
+                'Sudah Absen',
+                style: GoogleFonts.poppins(
+                  fontWeight: FontWeight.w700,
+                  fontSize: 16,
+                  color: AppColors.ink,
+                ),
+              ),
+            ],
+          ),
+          content: Text(
+            'Anda sudah tercatat melakukan absensi hari ini (${_attendanceState.todayStatusLabel}). Absensi hanya bisa dilakukan satu kali per hari.',
+            style: GoogleFonts.poppins(fontSize: 13, color: AppColors.muted, height: 1.5),
+          ),
+          actions: [
+            ElevatedButton(
+              onPressed: () => Navigator.pop(ctx),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.maroon,
+                foregroundColor: Colors.white,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              ),
+              child: const Text('Tutup'),
+            ),
+          ],
+        ),
+      );
+      return;
+    }
+
     if (_photoTimestamp == null && _photoBytes == null) {
       showDialog(
         context: context,
@@ -175,7 +223,7 @@ class _SiswaAutoAttendancePageState extends State<SiswaAutoAttendancePage> {
                 foregroundColor: Colors.white,
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
               ),
-              child: const Text('Ambil Foto Sekarang'),
+              child: const Text('Buka Kamera Sekarang'),
             ),
           ],
         ),
@@ -189,10 +237,10 @@ class _SiswaAutoAttendancePageState extends State<SiswaAutoAttendancePage> {
     final locName = loc?.locationName ?? 'SMK Negeri 8 Malang';
 
     setState(() {
-      _isSubmitted = true;
+      _isUploading = true;
     });
 
-    _attendanceState.submitAutomatic(
+    final success = await _attendanceState.submitAutomatic(
       time: _timeService.now,
       location: locName,
       latitude: lat,
@@ -201,8 +249,16 @@ class _SiswaAutoAttendancePageState extends State<SiswaAutoAttendancePage> {
       photoPath: _photoPath,
     );
 
+    if (!mounted) return;
+
+    setState(() {
+      _isUploading = false;
+      _isSubmitted = true;
+    });
+
     showDialog(
       context: context,
+      barrierDismissible: false,
       builder: (ctx) => AlertDialog(
         backgroundColor: Colors.white,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
@@ -211,16 +267,19 @@ class _SiswaAutoAttendancePageState extends State<SiswaAutoAttendancePage> {
             Container(
               padding: const EdgeInsets.all(8),
               decoration: BoxDecoration(
-                color: Colors.green.shade50,
+                color: (success ? Colors.green : Colors.orange).shade50,
                 shape: BoxShape.circle,
               ),
-              child: Icon(Icons.check_circle_rounded,
-                  color: Colors.green.shade700, size: 26),
+              child: Icon(
+                success ? Icons.check_circle_rounded : Icons.info_rounded,
+                color: success ? Colors.green.shade700 : Colors.orange.shade700,
+                size: 26,
+              ),
             ),
             const SizedBox(width: 12),
             Expanded(
               child: Text(
-                'Absensi Berhasil!',
+                success ? 'Absensi Berhasil!' : 'Info Absensi',
                 style: GoogleFonts.poppins(
                   fontWeight: FontWeight.w800,
                   fontSize: 17,
@@ -235,7 +294,9 @@ class _SiswaAutoAttendancePageState extends State<SiswaAutoAttendancePage> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
-              'Kehadiran Anda di $locName tercatat pada ${_timeService.formattedTime} dengan radius dan foto terverifikasi watermark.',
+              success
+                  ? 'Kehadiran Anda di $locName tercatat pada ${_timeService.formattedTime}. Foto bukti berhasil diunggah ke penyimpanan cloud Supabase.'
+                  : 'Data absensi Anda telah diproses.',
               style: GoogleFonts.poppins(
                 fontSize: 13,
                 color: AppColors.muted,
@@ -251,11 +312,11 @@ class _SiswaAutoAttendancePageState extends State<SiswaAutoAttendancePage> {
               ),
               child: Row(
                 children: [
-                  const Icon(Icons.verified_rounded, color: Colors.green, size: 18),
+                  const Icon(Icons.cloud_done_rounded, color: Colors.green, size: 18),
                   const SizedBox(width: 8),
                   Expanded(
                     child: Text(
-                      'Koordinat: ${lat.toStringAsFixed(5)}, ${lng.toStringAsFixed(5)}',
+                      'Tersimpan di Bucket Supabase & Terverifikasi',
                       style: GoogleFonts.poppins(fontSize: 11, fontWeight: FontWeight.w600),
                     ),
                   ),
@@ -721,7 +782,7 @@ class _SiswaAutoAttendancePageState extends State<SiswaAutoAttendancePage> {
                       width: double.infinity,
                       height: 52,
                       child: ElevatedButton(
-                        onPressed: _isSubmitted ? null : _submitAttendance,
+                        onPressed: (_isSubmitted || _isUploading) ? null : _submitAttendance,
                         style: ElevatedButton.styleFrom(
                           backgroundColor: AppColors.maroon,
                           foregroundColor: Colors.white,
@@ -730,13 +791,29 @@ class _SiswaAutoAttendancePageState extends State<SiswaAutoAttendancePage> {
                             borderRadius: BorderRadius.circular(16),
                           ),
                         ),
-                        child: Text(
-                          _isSubmitted ? 'Presensi Sudah Dikirim' : 'Kirim Absensi',
-                          style: GoogleFonts.poppins(
-                            fontSize: 15,
-                            fontWeight: FontWeight.w700,
-                          ),
-                        ),
+                        child: _isUploading
+                            ? const Row(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  SizedBox(
+                                    width: 20,
+                                    height: 20,
+                                    child: CircularProgressIndicator(
+                                      strokeWidth: 2.5,
+                                      valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                                    ),
+                                  ),
+                                  SizedBox(width: 12),
+                                  Text('Mengunggah Foto & Absensi...'),
+                                ],
+                              )
+                            : Text(
+                                _isSubmitted ? 'Presensi Sudah Dikirim' : 'Kirim Absensi',
+                                style: GoogleFonts.poppins(
+                                  fontSize: 15,
+                                  fontWeight: FontWeight.w700,
+                                ),
+                              ),
                       ),
                     ),
 

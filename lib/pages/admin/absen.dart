@@ -62,6 +62,63 @@ class _AdminAttendanceTabState extends State<AdminAttendanceTab> {
     }
   }
 
+  Future<void> _confirmResetAllAttendance() async {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: Colors.white,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(22)),
+        title: Row(
+          children: [
+            const Icon(Icons.restart_alt_rounded, color: AppColors.maroon, size: 26),
+            const SizedBox(width: 10),
+            Text(
+              'Reset Absensi Hari Ini',
+              style: GoogleFonts.poppins(
+                fontWeight: FontWeight.w700,
+                fontSize: 16,
+                color: AppColors.ink,
+              ),
+            ),
+          ],
+        ),
+        content: Text(
+          'Apakah Anda yakin ingin mereset seluruh data absensi hari ini? Status seluruh siswa akan kembali menjadi "Belum Absen".',
+          style: GoogleFonts.poppins(fontSize: 13, color: AppColors.muted, height: 1.5),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: Text('Batal', style: GoogleFonts.poppins(color: AppColors.muted)),
+          ),
+          ElevatedButton(
+            onPressed: () async {
+              Navigator.pop(ctx);
+              final ok = await SupabaseService().resetAttendanceForToday();
+              if (ok) {
+                await _loadRealAttendance();
+                if (mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text('Absensi hari ini berhasil direset oleh admin.'),
+                      backgroundColor: Colors.green,
+                    ),
+                  );
+                }
+              }
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.red.shade700,
+              foregroundColor: Colors.white,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            ),
+            child: const Text('Reset'),
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Column(
@@ -70,6 +127,11 @@ class _AdminAttendanceTabState extends State<AdminAttendanceTab> {
         GeoraHeader(
           title: 'Monitoring Absensi',
           subtitle: 'Seluruh kelas • ${TimeService().formattedDate}',
+          trailing: IconButton(
+            icon: const Icon(Icons.restart_alt_rounded, color: Colors.white, size: 24),
+            onPressed: _confirmResetAllAttendance,
+            tooltip: 'Reset Absensi Hari Ini',
+          ),
         ),
 
         Expanded(

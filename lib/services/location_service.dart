@@ -28,10 +28,31 @@ class LocationService extends ChangeNotifier {
 
   LocationService._internal();
 
-  // SMK Negeri 8 Malang Coordinates
-  static const double schoolLatitude = -7.93557;
-  static const double schoolLongitude = 112.6595;
-  static const double maxRadiusMeters = 300.0; // Allowed radius 300 meters
+  // SMK Negeri 8 Malang Default Coordinates
+  static const double defaultSchoolLatitude = -7.93557;
+  static const double defaultSchoolLongitude = 112.6595;
+  static const double defaultMaxRadiusMeters = 300.0;
+
+  static double schoolLatitude = defaultSchoolLatitude;
+  static double schoolLongitude = defaultSchoolLongitude;
+  static double maxRadiusMeters = defaultMaxRadiusMeters;
+  static String schoolName = 'SMK Negeri 8 Malang';
+  static String schoolAddress = 'Jl. Teluk Pacitan, Arjosari, Kec. Blimbing, Kota Malang';
+
+  void setSchoolConfig({
+    required double lat,
+    required double lng,
+    required double radius,
+    String? name,
+    String? address,
+  }) {
+    schoolLatitude = lat;
+    schoolLongitude = lng;
+    maxRadiusMeters = radius;
+    if (name != null && name.isNotEmpty) schoolName = name;
+    if (address != null && address.isNotEmpty) schoolAddress = address;
+    notifyListeners();
+  }
 
   LocationResult? _lastLocation;
   bool _isLoading = false;
