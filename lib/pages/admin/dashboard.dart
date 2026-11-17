@@ -7,6 +7,7 @@ import '../../widgets/header.dart';
 import 'kelola_admin.dart';
 import 'kelola_guru.dart';
 import 'kelola_kelas.dart';
+import 'kelola_konfigurasi_absen.dart';
 import 'kelola_siswa.dart';
 import 'pengaturan_sekolah.dart';
 
@@ -247,7 +248,7 @@ class _AdminDashboardTabState extends State<AdminDashboardTab>
                     Expanded(
                       child: _buildAccountManageCard(
                         title: 'Kelas',
-                        subtitle: 'CRUD Kelas & Wali Kelas',
+                        subtitle: 'Mengatur Anggota Kelas & Wali Kelas',
                         onTap: () {
                           Navigator.push(
                             context,
@@ -274,6 +275,21 @@ class _AdminDashboardTabState extends State<AdminDashboardTab>
                       ),
                     ),
                   ],
+                ),
+                const SizedBox(height: 12),
+
+                // Row: Atur Waktu Absensi (Konfigurasi Absen)
+                _buildFullWidthAccountManageCard(
+                  title: 'Jadwal & Waktu Absen',
+                  subtitle: 'Atur Jam Mulai, Batas Terlambat, dan Jam Selesai',
+                  onTap: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => const ManageKonfigurasiAbsenPage(),
+                      ),
+                    );
+                  },
                 ),
 
                 const SizedBox(height: 20),

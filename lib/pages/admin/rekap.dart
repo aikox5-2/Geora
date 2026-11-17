@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
-import '../../services/dummy_data_service.dart';
+import '../../services/supabase_service.dart';
 import '../../services/time_service.dart';
 import '../../theme/app_colors.dart';
 import '../../widgets/header.dart';
@@ -16,41 +16,46 @@ class _AdminRecapTabState extends State<AdminRecapTab> {
   late String _selectedPeriod;
   late List<String> _availablePeriods;
 
+  List<Map<String, dynamic>> _dailyData = [];
+  List<Map<String, dynamic>> _weeklyData = [];
+  List<Map<String, dynamic>> _monthlyData = [];
+
+  int _totalStudents = 0;
+  int _hadirToday = 0;
+  int _terlambatToday = 0;
+  int _izinToday = 0;
+  int _sakitToday = 0;
+  bool _isLoadingStats = true;
+
   @override
   void initState() {
     super.initState();
     _selectedPeriod = TimeService().currentMonthYear;
     _availablePeriods = TimeService().availablePeriods;
+    _loadRealStats();
   }
 
-  // Daily attendance percentages: [Sen, Sel, Rab, Kam, Jum, Sab, Min]
-  final List<Map<String, dynamic>> _dailyData = [
-    {'day': 'Sen', 'pct': 0.58},
-    {'day': 'Sel', 'pct': 0.78},
-    {'day': 'Rab', 'pct': 0.62},
-    {'day': 'Kam', 'pct': 0.90},
-    {'day': 'Jum', 'pct': 0.82},
-    {'day': 'Sab', 'pct': 0.96},
-    {'day': 'Min', 'pct': 0.70},
-  ];
-
-  // Weekly attendance percentages: [Mg 1, Mg 2, Mg 3, Mg 4]
-  final List<Map<String, dynamic>> _weeklyData = [
-    {'week': 'Mg 1', 'pct': 0.65},
-    {'week': 'Mg 2', 'pct': 0.85},
-    {'week': 'Mg 3', 'pct': 0.74},
-    {'week': 'Mg 4', 'pct': 0.95},
-  ];
-
-  // Monthly attendance percentages: [Apr, Mei, Jun, Jul, Agu, Sep]
-  final List<Map<String, dynamic>> _monthlyData = [
-    {'month': 'Apr', 'pct': 0.65},
-    {'month': 'Mei', 'pct': 0.76},
-    {'month': 'Jun', 'pct': 0.84},
-    {'month': 'Jul', 'pct': 0.90},
-    {'month': 'Agu', 'pct': 0.78},
-    {'month': 'Sep', 'pct': 0.96},
-  ];
+  Future<void> _loadRealStats() async {
+    setState(() => _isLoadingStats = true);
+    try {
+      final stats = await SupabaseService().getDetailedAttendanceStats();
+      if (mounted) {
+        setState(() {
+          _totalStudents = stats['totalStudents'] as int? ?? 0;
+          _hadirToday = stats['hadirToday'] as int? ?? 0;
+          _terlambatToday = stats['terlambatToday'] as int? ?? 0;
+          _izinToday = stats['izinToday'] as int? ?? 0;
+          _sakitToday = stats['sakitToday'] as int? ?? 0;
+          _dailyData = List<Map<String, dynamic>>.from(stats['dailyBars'] ?? []);
+          _weeklyData = List<Map<String, dynamic>>.from(stats['weeklyBars'] ?? []);
+          _monthlyData = List<Map<String, dynamic>>.from(stats['monthlyBars'] ?? []);
+          _isLoadingStats = false;
+        });
+      }
+    } catch (_) {
+      if (mounted) setState(() => _isLoadingStats = false);
+    }
+  }
 
   void _showPeriodPicker() {
     showModalBottomSheet(
@@ -383,6 +388,10 @@ class _AdminRecapTabState extends State<AdminRecapTab> {
               children: [
                 // 1. Periode Dropdown Card
                 _buildPeriodCard(),
+                if (_isLoadingStats) ...[
+                  const SizedBox(height: 12),
+                  const LinearProgressIndicator(color: AppColors.maroon, minHeight: 3),
+                ],
                 const SizedBox(height: 20),
 
                 // 2. Statistik Kehadiran (3 stat cards)
@@ -397,9 +406,14 @@ class _AdminRecapTabState extends State<AdminRecapTab> {
                 const SizedBox(height: 12),
                 Builder(
                   builder: (context) {
-                    final data = DummyDataService();
-                    final hadirPct = data.totalStudents > 0
-                        ? ((data.attendedToday / data.totalStudents) * 100).round()
+                    final hadirPct = _totalStudents > 0
+                        ? (((_hadirToday + _terlambatToday) / _totalStudents) * 100).round()
+                        : 0;
+                    final izinPct = _totalStudents > 0
+                        ? (((_izinToday + _sakitToday) / _totalStudents) * 100).round()
+                        : 0;
+                    final terlambatPct = _totalStudents > 0
+                        ? ((_terlambatToday / _totalStudents) * 100).round()
                         : 0;
 
                     return Row(
@@ -414,8 +428,8 @@ class _AdminRecapTabState extends State<AdminRecapTab> {
                         const SizedBox(width: 12),
                         Expanded(
                           child: _buildMetricCard(
-                            label: 'Izin',
-                            value: '0%',
+                            label: 'Izin & Sakit',
+                            value: '$izinPct%',
                             valueColor: const Color(0xFFD97706), // Amber / Gold
                           ),
                         ),
@@ -423,7 +437,7 @@ class _AdminRecapTabState extends State<AdminRecapTab> {
                         Expanded(
                           child: _buildMetricCard(
                             label: 'Terlambat',
-                            value: '0%',
+                            value: '$terlambatPct%',
                             valueColor: const Color(0xFF6B0504), // Dark Maroon
                           ),
                         ),

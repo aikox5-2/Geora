@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
-import '../../services/dummy_data_service.dart';
+import '../../services/supabase_service.dart';
 import '../../services/time_service.dart';
 import '../../theme/app_colors.dart';
 import '../../widgets/header.dart';
@@ -15,10 +15,34 @@ class GuruRecapTab extends StatefulWidget {
 class _GuruRecapTabState extends State<GuruRecapTab> {
   late String _selectedPeriod;
 
+  List<Map<String, dynamic>> _dailyData = [];
+  int _totalStudents = 0;
+  int _hadirToday = 0;
+  int _terlambatToday = 0;
+  int _izinToday = 0;
+  int _sakitToday = 0;
+
   @override
   void initState() {
     super.initState();
     _selectedPeriod = TimeService().currentMonthYear;
+    _loadRealStats();
+  }
+
+  Future<void> _loadRealStats() async {
+    try {
+      final stats = await SupabaseService().getDetailedAttendanceStats();
+      if (mounted) {
+        setState(() {
+          _totalStudents = stats['totalStudents'] as int? ?? 0;
+          _hadirToday = stats['hadirToday'] as int? ?? 0;
+          _terlambatToday = stats['terlambatToday'] as int? ?? 0;
+          _izinToday = stats['izinToday'] as int? ?? 0;
+          _sakitToday = stats['sakitToday'] as int? ?? 0;
+          _dailyData = List<Map<String, dynamic>>.from(stats['dailyBars'] ?? []);
+        });
+      }
+    } catch (_) {}
   }
 
   void _showPeriodPicker() {
@@ -193,15 +217,22 @@ class _GuruRecapTabState extends State<GuruRecapTab> {
                         child: Row(
                           mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                           crossAxisAlignment: CrossAxisAlignment.end,
-                          children: [
-                            _buildBar('Sen', 0.85),
-                            _buildBar('Sel', 0.90),
-                            _buildBar('Rab', 0.80),
-                            _buildBar('Kam', 0.92),
-                            _buildBar('Jum', 0.88),
-                            _buildBar('Sab', 0.95),
-                            _buildBar('Min', 0.75),
-                          ],
+                          children: (_dailyData.isNotEmpty
+                                  ? _dailyData
+                                  : [
+                                      {'day': 'Sen', 'pct': 0.0},
+                                      {'day': 'Sel', 'pct': 0.0},
+                                      {'day': 'Rab', 'pct': 0.0},
+                                      {'day': 'Kam', 'pct': 0.0},
+                                      {'day': 'Jum', 'pct': 0.0},
+                                      {'day': 'Sab', 'pct': 0.0},
+                                      {'day': 'Min', 'pct': 0.0},
+                                    ])
+                              .map((d) => _buildBar(
+                                    d['day'] as String,
+                                    ((d['pct'] as num?)?.toDouble() ?? 0.0).clamp(0.0, 1.0),
+                                  ))
+                              .toList(),
                         ),
                       ),
 
@@ -210,9 +241,11 @@ class _GuruRecapTabState extends State<GuruRecapTab> {
                       // Bottom legend row
                       Builder(
                         builder: (context) {
-                          final data = DummyDataService();
-                          final hadirPct = data.totalStudents > 0
-                              ? ((data.attendedToday / data.totalStudents) * 100).round()
+                          final hadirPct = _totalStudents > 0
+                              ? (((_hadirToday + _terlambatToday) / _totalStudents) * 100).round()
+                              : 0;
+                          final terlambatPct = _totalStudents > 0
+                              ? ((_terlambatToday / _totalStudents) * 100).round()
                               : 0;
 
                           return Row(
@@ -227,7 +260,7 @@ class _GuruRecapTabState extends State<GuruRecapTab> {
                                 ),
                               ),
                               Text(
-                                'Terlambat 0%',
+                                'Terlambat $terlambatPct%',
                                 style: GoogleFonts.poppins(
                                   fontSize: 12.5,
                                   fontWeight: FontWeight.w700,
@@ -247,9 +280,14 @@ class _GuruRecapTabState extends State<GuruRecapTab> {
                 // 2. Row of 3 Stat Cards
                 Builder(
                   builder: (context) {
-                    final data = DummyDataService();
-                    final hadirPct = data.totalStudents > 0
-                        ? ((data.attendedToday / data.totalStudents) * 100).round()
+                    final hadirPct = _totalStudents > 0
+                        ? (((_hadirToday + _terlambatToday) / _totalStudents) * 100).round()
+                        : 0;
+                    final izinPct = _totalStudents > 0
+                        ? (((_izinToday + _sakitToday) / _totalStudents) * 100).round()
+                        : 0;
+                    final terlambatPct = _totalStudents > 0
+                        ? ((_terlambatToday / _totalStudents) * 100).round()
                         : 0;
 
                     return Row(
@@ -264,8 +302,8 @@ class _GuruRecapTabState extends State<GuruRecapTab> {
                         const SizedBox(width: 12),
                         Expanded(
                           child: _buildSmallStatCard(
-                            label: 'Izin',
-                            value: '0%',
+                            label: 'Izin & Sakit',
+                            value: '$izinPct%',
                             valColor: const Color(0xFFF5A623),
                           ),
                         ),
@@ -273,7 +311,7 @@ class _GuruRecapTabState extends State<GuruRecapTab> {
                         Expanded(
                           child: _buildSmallStatCard(
                             label: 'Terlambat',
-                            value: '0%',
+                            value: '$terlambatPct%',
                             valColor: const Color(0xFF8B1E1E),
                           ),
                         ),

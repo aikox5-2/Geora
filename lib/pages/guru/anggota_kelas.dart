@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_map/flutter_map.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:latlong2/latlong.dart' as ll;
+import 'package:url_launcher/url_launcher.dart';
 import '../../services/supabase_service.dart';
 import '../../services/time_service.dart';
 import '../../theme/app_colors.dart';
@@ -50,10 +53,12 @@ class ClassStudentItem {
 
 class AnggotaKelasPage extends StatefulWidget {
   final String className;
+  final String? classId;
 
   const AnggotaKelasPage({
     super.key,
     this.className = 'XII RPL D',
+    this.classId,
   });
 
   @override
@@ -69,10 +74,77 @@ class _AnggotaKelasPageState extends State<AnggotaKelasPage> {
   List<ClassStudentItem> _students = [];
   bool _isLoading = true;
 
+  String _waliKelasName = 'Memuat...';
+  String _waliKelasNip = '';
+  String _waliKelasInitials = '...';
+
   @override
   void initState() {
     super.initState();
+    _loadWaliKelas();
     _loadRealStudents();
+  }
+
+  Future<void> _loadWaliKelas() async {
+    final c = SupabaseService().client;
+    if (c == null) return;
+    try {
+      Map<String, dynamic>? kelasData;
+      if (widget.classId != null && widget.classId!.isNotEmpty) {
+        kelasData = await c
+            .from('kelas')
+            .select('guru(nama, nip)')
+            .eq('id_kelas', widget.classId!)
+            .maybeSingle();
+      }
+      if (kelasData == null) {
+        final cleanTarget = widget.className.toLowerCase().replaceAll(' ', '');
+        final kList = await c.from('kelas').select('tingkat, jurusan, guru(nama, nip)');
+        for (final k in kList) {
+          final fullName = '${k['tingkat'] ?? ''}${k['jurusan'] ?? ''}'.toLowerCase().replaceAll(' ', '');
+          if (fullName == cleanTarget || fullName.contains(cleanTarget) || cleanTarget.contains(fullName)) {
+            kelasData = k;
+            break;
+          }
+        }
+      }
+
+      if (kelasData != null && kelasData['guru'] != null) {
+        final g = kelasData['guru'] as Map<String, dynamic>;
+        final name = g['nama']?.toString() ?? 'Belum Ditentukan';
+        final nip = g['nip']?.toString() ?? '';
+        if (mounted) {
+          setState(() {
+            _waliKelasName = name;
+            _waliKelasNip = nip;
+            _waliKelasInitials = _calculateInitials(name);
+          });
+        }
+      } else {
+        if (mounted) {
+          setState(() {
+            _waliKelasName = 'Belum Ditentukan';
+            _waliKelasNip = '';
+            _waliKelasInitials = '—';
+          });
+        }
+      }
+    } catch (_) {
+      if (mounted) {
+        setState(() {
+          _waliKelasName = 'Belum Ditentukan';
+          _waliKelasNip = '';
+          _waliKelasInitials = '—';
+        });
+      }
+    }
+  }
+
+  String _calculateInitials(String name) {
+    final parts = name.trim().split(RegExp(r'\s+'));
+    if (parts.isEmpty) return '—';
+    if (parts.length == 1) return parts[0].isNotEmpty ? parts[0][0].toUpperCase() : '—';
+    return '${parts[0][0]}${parts[1][0]}'.toUpperCase();
   }
 
   Color _getStatusColor(String status) {
@@ -85,6 +157,8 @@ class _AnggotaKelasPageState extends State<AnggotaKelasPage> {
         return const Color(0xFF1976D2);
       case 'sakit':
         return const Color(0xFFF57C00);
+      case 'dalam tinjauan':
+        return const Color(0xFFE65100);
       default:
         return const Color(0xFFD32F2F);
     }
@@ -93,7 +167,7 @@ class _AnggotaKelasPageState extends State<AnggotaKelasPage> {
   Future<void> _loadRealStudents() async {
     setState(() => _isLoading = true);
     try {
-      final list = await SupabaseService().getStudentsForClass(widget.className);
+      final list = await SupabaseService().getStudentsForClass(widget.className, classId: widget.classId);
       if (list.isNotEmpty) {
         _students = list.map((s) {
           return ClassStudentItem(
@@ -112,25 +186,10 @@ class _AnggotaKelasPageState extends State<AnggotaKelasPage> {
           );
         }).toList();
       } else {
-        // Fallback matching real 6 seed students from ERD
-        _students = [
-          ClassStudentItem(absenNumber: 1, name: 'Ahmad Farhan', time: '— WIB', status: 'Alpha', statusColor: _getStatusColor('Alpha'), nisn: '0062341901'),
-          ClassStudentItem(absenNumber: 2, name: 'Budiono Siregar', time: '— WIB', status: 'Alpha', statusColor: _getStatusColor('Alpha'), nisn: '0051283921'),
-          ClassStudentItem(absenNumber: 3, name: 'Chelsea Aqila Putri', time: '— WIB', status: 'Alpha', statusColor: _getStatusColor('Alpha'), nisn: '0061283922'),
-          ClassStudentItem(absenNumber: 4, name: 'Dimas Ibrahimovic', time: '— WIB', status: 'Alpha', statusColor: _getStatusColor('Alpha'), nisn: '0062341902'),
-          ClassStudentItem(absenNumber: 5, name: 'Malika Aisyabila', time: '— WIB', status: 'Alpha', statusColor: _getStatusColor('Alpha'), nisn: '0061283923'),
-          ClassStudentItem(absenNumber: 6, name: 'Nabil Syafiq Afa', time: '— WIB', status: 'Alpha', statusColor: _getStatusColor('Alpha'), nisn: '0061283924'),
-        ];
+        _students = [];
       }
     } catch (_) {
-      _students = [
-        ClassStudentItem(absenNumber: 1, name: 'Ahmad Farhan', time: '— WIB', status: 'Alpha', statusColor: _getStatusColor('Alpha'), nisn: '0062341901'),
-        ClassStudentItem(absenNumber: 2, name: 'Budiono Siregar', time: '— WIB', status: 'Alpha', statusColor: _getStatusColor('Alpha'), nisn: '0051283921'),
-        ClassStudentItem(absenNumber: 3, name: 'Chelsea Aqila Putri', time: '— WIB', status: 'Alpha', statusColor: _getStatusColor('Alpha'), nisn: '0061283922'),
-        ClassStudentItem(absenNumber: 4, name: 'Dimas Ibrahimovic', time: '— WIB', status: 'Alpha', statusColor: _getStatusColor('Alpha'), nisn: '0062341902'),
-        ClassStudentItem(absenNumber: 5, name: 'Malika Aisyabila', time: '— WIB', status: 'Alpha', statusColor: _getStatusColor('Alpha'), nisn: '0061283923'),
-        ClassStudentItem(absenNumber: 6, name: 'Nabil Syafiq Afa', time: '— WIB', status: 'Alpha', statusColor: _getStatusColor('Alpha'), nisn: '0061283924'),
-      ];
+      _students = [];
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }
@@ -279,7 +338,7 @@ class _AnggotaKelasPageState extends State<AnggotaKelasPage> {
                                 ),
                                 alignment: Alignment.center,
                                 child: Text(
-                                  'YG',
+                                  _waliKelasInitials,
                                   style: GoogleFonts.poppins(
                                     fontSize: 16,
                                     fontWeight: FontWeight.w800,
@@ -293,7 +352,7 @@ class _AnggotaKelasPageState extends State<AnggotaKelasPage> {
                                   crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
                                     Text(
-                                      'Yudi Guru, S.Pd',
+                                      _waliKelasName,
                                       style: GoogleFonts.poppins(
                                         fontSize: 15,
                                         fontWeight: FontWeight.w700,
@@ -302,7 +361,9 @@ class _AnggotaKelasPageState extends State<AnggotaKelasPage> {
                                     ),
                                     const SizedBox(height: 2),
                                     Text(
-                                      'Wali Kelas • NIP 198503122010011005',
+                                      _waliKelasNip.isNotEmpty
+                                          ? 'Wali Kelas • NIP $_waliKelasNip'
+                                          : 'Wali Kelas',
                                       style: GoogleFonts.poppins(
                                         fontSize: 12,
                                         color: AppColors.muted,
@@ -501,7 +562,9 @@ class _AnggotaKelasPageState extends State<AnggotaKelasPage> {
                             child: Padding(
                               padding: const EdgeInsets.symmetric(vertical: 40),
                               child: Text(
-                                'Tidak ada murid yang cocok.',
+                                _students.isEmpty
+                                    ? 'Belum ada siswa yang terdaftar di kelas ini.'
+                                    : 'Tidak ada murid yang cocok dengan pencarian.',
                                 style: GoogleFonts.poppins(
                                   fontSize: 13,
                                   color: AppColors.muted,
@@ -639,9 +702,17 @@ class _AnggotaKelasPageState extends State<AnggotaKelasPage> {
     final initials = s.name.isNotEmpty
         ? s.name.trim().split(' ').map((w) => w.isNotEmpty ? w[0] : '').take(2).join('').toUpperCase()
         : 'S';
-    final realLoc = s.location ?? (s.status == 'Hadir' || s.status == 'Terlambat'
-        ? 'SMK Negeri 8 Kota Malang (-7.9361, 112.6619)'
-        : 'Belum Terdeteksi');
+    final isManual = (s.method ?? '').toLowerCase().contains('manual') ||
+        s.status == 'Izin' ||
+        s.status == 'Sakit' ||
+        s.status == 'Dalam Tinjauan';
+    final isAlpha = s.status == 'Alpha' || s.status == 'Belum Presensi';
+    final hasRealGps = !isManual && !isAlpha && (s.status == 'Hadir' || s.status == 'Terlambat');
+    final realLoc = isManual
+        ? 'Pengajuan Presensi Manual (Tanpa Koordinat GPS)'
+        : (s.location ?? ((s.status == 'Hadir' || s.status == 'Terlambat')
+            ? 'SMK Negeri 8 Kota Malang (-7.9361, 112.6619)'
+            : 'Belum Terdeteksi'));
 
     showModalBottomSheet(
       context: context,
@@ -842,69 +913,97 @@ class _AnggotaKelasPageState extends State<AnggotaKelasPage> {
                     ),
                   ),
 
-                  const SizedBox(height: 14),
-
-                  // Frame Google Maps Satelit sesuai permintaan user
-                  Container(
-                    height: 130,
-                    width: double.infinity,
-                    decoration: BoxDecoration(
-                      borderRadius: BorderRadius.circular(16),
-                      border: Border.all(color: const Color(0xFFD4E3EA)),
-                    ),
-                    child: ClipRRect(
-                      borderRadius: BorderRadius.circular(15),
-                      child: Stack(
-                        fit: StackFit.expand,
-                        children: [
-                          Image.asset(
-                            'asset/maps_smkn8.jpg',
-                            fit: BoxFit.cover,
-                            errorBuilder: (context, error, stackTrace) => Container(color: Colors.grey.shade200),
-                          ),
-                          Container(
-                            color: Colors.black.withValues(alpha: 0.25),
-                          ),
-                          Center(
-                            child: Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                              decoration: BoxDecoration(
-                                color: Colors.white.withValues(alpha: 0.92),
-                                borderRadius: BorderRadius.circular(20),
-                                boxShadow: [
-                                  BoxShadow(
-                                    color: Colors.black.withValues(alpha: 0.2),
-                                    blurRadius: 8,
-                                  ),
-                                ],
+                  // Tampilkan Peta Google Maps Asli jika presensi GPS nyata
+                  if (hasRealGps) ...[
+                    const SizedBox(height: 14),
+                    Container(
+                      height: 160,
+                      width: double.infinity,
+                      decoration: BoxDecoration(
+                        borderRadius: BorderRadius.circular(16),
+                        border: Border.all(color: const Color(0xFFD4E3EA)),
+                      ),
+                      child: ClipRRect(
+                        borderRadius: BorderRadius.circular(15),
+                        child: Stack(
+                          children: [
+                            FlutterMap(
+                              options: MapOptions(
+                                initialCenter: ll.LatLng(s.latitude!, s.longitude!),
+                                initialZoom: 16.0,
+                                minZoom: 10.0,
+                                maxZoom: 19.0,
+                                interactionOptions: const InteractionOptions(
+                                  flags: InteractiveFlag.all,
+                                ),
                               ),
-                              child: Row(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  const Icon(Icons.pin_drop_rounded, color: AppColors.maroon, size: 18),
-                                  const SizedBox(width: 6),
-                                  Text(
-                                    s.status == 'Alpha' ? 'Siswa Belum Presensi' : 'Radius Sekolah Terverifikasi',
-                                    style: GoogleFonts.poppins(
-                                      fontSize: 11.5,
-                                      fontWeight: FontWeight.w700,
-                                      color: s.status == 'Alpha' ? Colors.red.shade700 : AppColors.maroon,
+                              children: [
+                                TileLayer(
+                                  urlTemplate: 'https://mt1.google.com/vt/lyrs=y&x={x}&y={y}&z={z}',
+                                  userAgentPackageName: 'com.geora.app',
+                                ),
+                                MarkerLayer(
+                                  markers: [
+                                    Marker(
+                                      point: ll.LatLng(s.latitude!, s.longitude!),
+                                      width: 40,
+                                      height: 40,
+                                      child: const Icon(
+                                        Icons.location_on_rounded,
+                                        color: Colors.red,
+                                        size: 38,
+                                      ),
                                     ),
+                                  ],
+                                ),
+                              ],
+                            ),
+                            Positioned(
+                              bottom: 8,
+                              right: 8,
+                              child: InkWell(
+                                onTap: () async {
+                                  final uri = Uri.parse('https://www.google.com/maps/search/?api=1&query=${s.latitude},${s.longitude}');
+                                  if (await canLaunchUrl(uri)) {
+                                    await launchUrl(uri, mode: LaunchMode.externalApplication);
+                                  }
+                                },
+                                child: Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                                  decoration: BoxDecoration(
+                                    color: Colors.white.withValues(alpha: 0.95),
+                                    borderRadius: BorderRadius.circular(20),
+                                    boxShadow: const [BoxShadow(color: Colors.black26, blurRadius: 4)],
                                   ),
-                                ],
+                                  child: Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      const Icon(Icons.open_in_new_rounded, size: 14, color: AppColors.maroon),
+                                      const SizedBox(width: 4),
+                                      Text(
+                                        'Buka Maps',
+                                        style: GoogleFonts.poppins(
+                                          fontSize: 11,
+                                          fontWeight: FontWeight.w700,
+                                          color: AppColors.maroon,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
                               ),
                             ),
-                          ),
-                        ],
+                          ],
+                        ),
                       ),
                     ),
-                  ),
+                  ],
 
                   const SizedBox(height: 14),
 
-                  // Bukti Foto Kehadiran
+                  // Bukti Kehadiran (Foto GPS Asli atau Surat Pengajuan Manual)
                   Text(
-                    'Bukti Foto Kehadiran',
+                    isManual ? 'Bukti Surat / Dokumen Izin' : 'Bukti Foto Kehadiran',
                     style: GoogleFonts.poppins(
                       fontSize: 13,
                       fontWeight: FontWeight.w700,
@@ -913,65 +1012,190 @@ class _AnggotaKelasPageState extends State<AnggotaKelasPage> {
                   ),
                   const SizedBox(height: 8),
 
-                  Container(
-                    width: double.infinity,
-                    padding: const EdgeInsets.all(14),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFFF8F5F2),
-                      borderRadius: BorderRadius.circular(16),
-                      border: Border.all(color: const Color(0xFFEFE8E1)),
-                    ),
-                    child: Row(
-                      children: [
-                        Container(
-                          width: 48,
-                          height: 48,
-                          decoration: BoxDecoration(
-                            color: Colors.white,
-                            borderRadius: BorderRadius.circular(12),
-                            border: Border.all(color: const Color(0xFFE5DDD5)),
+                  if (s.photoUrl != null && s.photoUrl!.isNotEmpty) ...[
+                    GestureDetector(
+                      onTap: () {
+                        showDialog(
+                          context: context,
+                          builder: (c) => Dialog(
+                            backgroundColor: Colors.transparent,
+                            insetPadding: const EdgeInsets.all(16),
+                            child: Stack(
+                              alignment: Alignment.topRight,
+                              children: [
+                                ClipRRect(
+                                  borderRadius: BorderRadius.circular(16),
+                                  child: Image.network(
+                                    s.photoUrl!,
+                                    fit: BoxFit.contain,
+                                  ),
+                                ),
+                                IconButton(
+                                  icon: const Icon(Icons.close_rounded, color: Colors.white, size: 28),
+                                  onPressed: () => Navigator.pop(c),
+                                ),
+                              ],
+                            ),
                           ),
-                          alignment: Alignment.center,
-                          child: Icon(
-                            s.status == 'Hadir' || s.status == 'Terlambat'
-                                ? Icons.verified_user_rounded
-                                : Icons.no_photography_outlined,
-                            color: s.status == 'Hadir' || s.status == 'Terlambat'
-                                ? Colors.green.shade700
-                                : AppColors.muted,
-                            size: 26,
-                          ),
+                        );
+                      },
+                      child: Container(
+                        width: double.infinity,
+                        height: 180,
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFF8F5F2),
+                          borderRadius: BorderRadius.circular(16),
+                          border: Border.all(color: const Color(0xFFEFE8E1)),
                         ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
+                        child: ClipRRect(
+                          borderRadius: BorderRadius.circular(15),
+                          child: Stack(
+                            fit: StackFit.expand,
                             children: [
-                              Text(
-                                s.status == 'Hadir' || s.status == 'Terlambat'
-                                    ? 'Geotag & Face Verified'
-                                    : 'Tidak Ada Bukti Foto',
-                                style: GoogleFonts.poppins(
-                                  fontSize: 12.5,
-                                  fontWeight: FontWeight.w700,
-                                  color: AppColors.ink,
+                              Image.network(
+                                s.photoUrl!,
+                                fit: BoxFit.cover,
+                                loadingBuilder: (ctx, child, progress) {
+                                  if (progress == null) return child;
+                                  return Container(
+                                    color: const Color(0xFFF8F5F2),
+                                    child: const Center(
+                                      child: CircularProgressIndicator(color: AppColors.maroon, strokeWidth: 2),
+                                    ),
+                                  );
+                                },
+                                errorBuilder: (ctx, e, st) => Container(
+                                  color: const Color(0xFFF8F5F2),
+                                  child: Center(
+                                    child: Column(
+                                      mainAxisAlignment: MainAxisAlignment.center,
+                                      children: [
+                                        const Icon(Icons.broken_image_outlined, size: 36, color: AppColors.muted),
+                                        const SizedBox(height: 6),
+                                        Text('Gagal memuat foto', style: GoogleFonts.poppins(fontSize: 11.5, color: AppColors.muted)),
+                                      ],
+                                    ),
+                                  ),
                                 ),
                               ),
-                              Text(
-                                s.status == 'Hadir' || s.status == 'Terlambat'
-                                    ? 'Kamera presensi terverifikasi koordinat GPS.'
-                                    : 'Murid belum mengambil foto presensi hari ini.',
-                                style: GoogleFonts.poppins(
-                                  fontSize: 11,
-                                  color: AppColors.muted,
+                              Positioned(
+                                bottom: 8,
+                                right: 8,
+                                child: Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                  decoration: BoxDecoration(
+                                    color: Colors.black.withValues(alpha: 0.65),
+                                    borderRadius: BorderRadius.circular(8),
+                                  ),
+                                  child: Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      const Icon(Icons.zoom_in_rounded, color: Colors.white, size: 14),
+                                      const SizedBox(width: 4),
+                                      Text(
+                                        'Perbesar Foto',
+                                        style: GoogleFonts.poppins(
+                                          fontSize: 10.5,
+                                          color: Colors.white,
+                                          fontWeight: FontWeight.w600,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ),
+                              Positioned(
+                                top: 8,
+                                left: 8,
+                                child: Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                  decoration: BoxDecoration(
+                                    color: Colors.green.shade700.withValues(alpha: 0.9),
+                                    borderRadius: BorderRadius.circular(8),
+                                  ),
+                                  child: Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      const Icon(Icons.verified_rounded, color: Colors.white, size: 13),
+                                      const SizedBox(width: 4),
+                                      Text(
+                                        'Selfie Asli Terverifikasi',
+                                        style: GoogleFonts.poppins(
+                                          fontSize: 10,
+                                          color: Colors.white,
+                                          fontWeight: FontWeight.w700,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
                                 ),
                               ),
                             ],
                           ),
                         ),
-                      ],
+                      ),
                     ),
-                  ),
+                  ] else ...[
+                    Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.all(14),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFF8F5F2),
+                        borderRadius: BorderRadius.circular(16),
+                        border: Border.all(color: const Color(0xFFEFE8E1)),
+                      ),
+                      child: Row(
+                        children: [
+                          Container(
+                            width: 48,
+                            height: 48,
+                            decoration: BoxDecoration(
+                              color: Colors.white,
+                              borderRadius: BorderRadius.circular(12),
+                              border: Border.all(color: const Color(0xFFE5DDD5)),
+                            ),
+                            alignment: Alignment.center,
+                            child: Icon(
+                              isManual ? Icons.notes_rounded : Icons.no_photography_outlined,
+                              color: isManual ? AppColors.maroon : AppColors.muted,
+                              size: 26,
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  isManual
+                                      ? (s.keterangan != null && s.keterangan!.isNotEmpty
+                                          ? 'Alasan: ${s.keterangan}'
+                                          : 'Pengajuan Absensi Manual')
+                                      : 'Tidak Ada Foto Presensi',
+                                  maxLines: 2,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: GoogleFonts.poppins(
+                                    fontSize: 12.5,
+                                    fontWeight: FontWeight.w700,
+                                    color: AppColors.ink,
+                                  ),
+                                ),
+                                Text(
+                                  isManual
+                                      ? 'Pengajuan izin / sakit dicatat tanpa berkas foto.'
+                                      : 'Murid belum mengambil foto presensi hari ini.',
+                                  style: GoogleFonts.poppins(
+                                    fontSize: 11,
+                                    color: AppColors.muted,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
 
                   const SizedBox(height: 18),
 
@@ -994,6 +1218,7 @@ class _AnggotaKelasPageState extends State<AnggotaKelasPage> {
                               location: s.location,
                               latitude: s.latitude,
                               longitude: s.longitude,
+                              photoUrl: s.photoUrl,
                               method: s.method,
                             ),
                           ),

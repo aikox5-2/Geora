@@ -1,12 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
-import '../../models/model_absensi.dart';
+import '../../services/supabase_service.dart';
 import '../../services/time_service.dart';
 import '../../theme/app_colors.dart';
 import '../../widgets/header.dart';
 import '../../widgets/kolom_cari.dart';
-import 'detail_siswa.dart';
-import 'pilih_kelas.dart';
+import 'anggota_kelas.dart';
 
 class GuruAttendanceTab extends StatefulWidget {
   const GuruAttendanceTab({super.key});
@@ -18,34 +17,44 @@ class GuruAttendanceTab extends StatefulWidget {
 class _GuruAttendanceTabState extends State<GuruAttendanceTab> {
   final TextEditingController _searchController = TextEditingController();
   String _searchQuery = '';
+  List<ClassAttendanceOverview> _classList = [];
+  bool _isLoading = true;
+  int _totalHadir = 0;
+  int _totalBelum = 0;
 
-  final List<StudentAttendanceItem> _students = const [
-    StudentAttendanceItem(
-      initials: 'BS',
-      name: 'Budiono Siregar',
-      time: '07.02 WIB',
-    ),
-    StudentAttendanceItem(
-      initials: 'CA',
-      name: 'Chelsea Aqila Putri',
-      time: '07.05 WIB',
-    ),
-    StudentAttendanceItem(
-      initials: 'MA',
-      name: 'Malika Aisyabila',
-      time: '07.28 WIB',
-    ),
-    StudentAttendanceItem(
-      initials: 'AP',
-      name: 'Alya Putri',
-      time: '—',
-    ),
-    StudentAttendanceItem(
-      initials: 'FA',
-      name: 'Fajar Adi',
-      time: '—',
-    ),
-  ];
+  @override
+  void initState() {
+    super.initState();
+    _loadRealAttendance();
+  }
+
+  Future<void> _loadRealAttendance() async {
+    setState(() => _isLoading = true);
+    try {
+      final list = await SupabaseService().getClassAttendanceOverview();
+      if (list.isNotEmpty) {
+        _classList = list;
+      } else {
+        _classList = const [
+          ClassAttendanceOverview(
+            classId: 'ca3af166-14b7-4af2-b894-656c5e6a7379',
+            className: 'XII RPL D',
+            hadir: 0,
+            belum: 6,
+            total: 6,
+          ),
+        ];
+      }
+      _totalHadir = _classList.fold(0, (sum, c) => sum + c.hadir);
+      _totalBelum = _classList.fold(0, (sum, c) => sum + c.belum);
+    } catch (_) {
+      _classList = [];
+      _totalHadir = 0;
+      _totalBelum = 0;
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
+    }
+  }
 
   @override
   void dispose() {
@@ -53,48 +62,27 @@ class _GuruAttendanceTabState extends State<GuruAttendanceTab> {
     super.dispose();
   }
 
-  List<StudentAttendanceItem> get _filteredStudents {
-    if (_searchQuery.isEmpty) return _students;
+  List<ClassAttendanceOverview> get _filteredClasses {
+    if (_searchQuery.isEmpty) return _classList;
     final q = _searchQuery.toLowerCase();
-    return _students.where((s) => s.name.toLowerCase().contains(q)).toList();
-  }
-
-  void _openDetail(StudentAttendanceItem student) {
-    Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (_) => DetailSiswaPage(
-          studentName: student.name,
-          initials: student.initials,
-          className: student.className,
-          time: student.time,
-        ),
-      ),
-    );
+    return _classList.where((c) => c.className.toLowerCase().contains(q)).toList();
   }
 
   @override
   Widget build(BuildContext context) {
-    final list = _filteredStudents;
+    final list = _filteredClasses;
 
     return Column(
       children: [
-        // Top Header matching Image 3
+        // Top Header
         GeoraHeader(
-          title: 'Absensi Siswa',
+          title: 'Presensi Siswa',
           subtitle: TimeService().formattedDate,
           showBrandLogo: true,
           trailing: IconButton(
-            icon: const Icon(Icons.tune_rounded, color: Colors.white),
-            tooltip: 'Pilih Kelas',
-            onPressed: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (_) => const PilihKelasPage(),
-                ),
-              );
-            },
+            icon: const Icon(Icons.refresh_rounded, color: Colors.white),
+            tooltip: 'Segarkan',
+            onPressed: _loadRealAttendance,
           ),
         ),
 
@@ -103,121 +91,214 @@ class _GuruAttendanceTabState extends State<GuruAttendanceTab> {
           padding: const EdgeInsets.fromLTRB(20, 16, 20, 12),
           child: GeoraSearchBar(
             controller: _searchController,
-            hintText: 'Cari nama siswa...',
+            hintText: 'Cari nama kelas atau rombel...',
             onChanged: (val) {
               setState(() {
-                _searchQuery = val;
+                _searchQuery = val.trim();
               });
             },
           ),
         ),
 
-        // List
         Expanded(
-          child: list.isEmpty
-              ? Center(
-                  child: Text(
-                    'Tidak ada data siswa ditemukan',
-                    style: GoogleFonts.poppins(
-                      fontSize: 13,
-                      color: AppColors.muted,
-                    ),
-                  ),
+          child: _isLoading
+              ? const Center(
+                  child: CircularProgressIndicator(color: AppColors.maroon),
                 )
-              : ListView.separated(
-                  physics: const BouncingScrollPhysics(),
-                  padding: const EdgeInsets.fromLTRB(20, 4, 20, 20),
-                  itemCount: list.length,
-                  separatorBuilder: (_, _) => const SizedBox(height: 12),
-                  itemBuilder: (context, index) {
-                    final student = list[index];
-                    return Material(
-                      color: Colors.transparent,
-                      child: InkWell(
-                        onTap: () => _openDetail(student),
-                        borderRadius: BorderRadius.circular(20),
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 16,
-                            vertical: 14,
-                          ),
-                          decoration: BoxDecoration(
-                            color: Colors.white,
-                            borderRadius: BorderRadius.circular(20),
-                            boxShadow: [
-                              BoxShadow(
-                                color: Colors.black.withValues(alpha: 0.02),
-                                blurRadius: 8,
-                                offset: const Offset(0, 3),
-                              ),
-                            ],
-                          ),
-                          child: Row(
-                            children: [
-                              // Avatar circle with initials
-                              Container(
-                                width: 48,
-                                height: 48,
-                                decoration: const BoxDecoration(
-                                  color: Color(0xFFF0E5DC),
-                                  shape: BoxShape.circle,
-                                ),
-                                alignment: Alignment.center,
-                                child: Text(
-                                  student.initials,
-                                  style: GoogleFonts.poppins(
-                                    fontSize: 15,
-                                    fontWeight: FontWeight.w700,
-                                    color: AppColors.maroon,
-                                  ),
-                                ),
-                              ),
-                              const SizedBox(width: 14),
+              : RefreshIndicator(
+                  color: AppColors.maroon,
+                  onRefresh: _loadRealAttendance,
+                  child: SingleChildScrollView(
+                    physics: const AlwaysScrollableScrollPhysics(
+                      parent: BouncingScrollPhysics(),
+                    ),
+                    padding: const EdgeInsets.fromLTRB(20, 4, 20, 24),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        // Rekap Hadir & Belum Absen
+                        Row(
+                          children: [
+                            Expanded(
+                              child: _buildStatCard(label: 'Hadir', value: '$_totalHadir'),
+                            ),
+                            const SizedBox(width: 14),
+                            Expanded(
+                              child: _buildStatCard(label: 'Belum Absen', value: '$_totalBelum'),
+                            ),
+                          ],
+                        ),
 
-                              // Name & Time
-                              Expanded(
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Text(
-                                      student.name,
-                                      style: GoogleFonts.poppins(
-                                        fontSize: 14.5,
-                                        fontWeight: FontWeight.w700,
-                                        color: AppColors.ink,
-                                      ),
-                                    ),
-                                    const SizedBox(height: 2),
-                                    Text(
-                                      student.time,
-                                      style: GoogleFonts.poppins(
-                                        fontSize: 12,
-                                        color: AppColors.muted,
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ),
+                        const SizedBox(height: 24),
 
-                              // "Detail" link in Maroon
-                              Text(
-                                'Detail',
-                                style: GoogleFonts.poppins(
-                                  fontSize: 13,
-                                  fontWeight: FontWeight.w700,
-                                  color: AppColors.maroon,
-                                ),
-                              ),
-                            ],
+                        // Section: Status Kehadiran Per Kelas
+                        Text(
+                          'Daftar Kelas & Status Presensi',
+                          style: GoogleFonts.poppins(
+                            fontSize: 17,
+                            fontWeight: FontWeight.w800,
+                            color: AppColors.ink,
                           ),
                         ),
-                      ),
-                    );
-                  },
+                        const SizedBox(height: 12),
+
+                        if (list.isEmpty)
+                          Center(
+                            child: Padding(
+                              padding: const EdgeInsets.symmetric(vertical: 40),
+                              child: Text(
+                                'Tidak ada kelas yang sesuai',
+                                style: GoogleFonts.poppins(color: AppColors.muted),
+                              ),
+                            ),
+                          )
+                        else
+                          ...list.map((item) => Padding(
+                                padding: const EdgeInsets.only(bottom: 12.0),
+                                child: Material(
+                                  color: Colors.transparent,
+                                  child: InkWell(
+                                    onTap: () {
+                                      Navigator.push(
+                                        context,
+                                        MaterialPageRoute(
+                                          builder: (_) => AnggotaKelasPage(
+                                            classId: item.classId,
+                                            className: item.className,
+                                          ),
+                                        ),
+                                      );
+                                    },
+                                    borderRadius: BorderRadius.circular(20),
+                                    child: Container(
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 18,
+                                        vertical: 18,
+                                      ),
+                                      decoration: BoxDecoration(
+                                        color: Colors.white,
+                                        borderRadius: BorderRadius.circular(20),
+                                        border: Border.all(
+                                          color: const Color(0xFFE8DFD8),
+                                          width: 1,
+                                        ),
+                                        boxShadow: [
+                                          BoxShadow(
+                                            color: Colors.black.withValues(alpha: 0.02),
+                                            blurRadius: 8,
+                                            offset: const Offset(0, 3),
+                                          ),
+                                        ],
+                                      ),
+                                      child: Row(
+                                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                        children: [
+                                          Expanded(
+                                            child: Text(
+                                              item.className,
+                                              maxLines: 1,
+                                              overflow: TextOverflow.ellipsis,
+                                              style: GoogleFonts.poppins(
+                                                fontSize: 14.5,
+                                                fontWeight: FontWeight.w700,
+                                                color: AppColors.ink,
+                                              ),
+                                            ),
+                                          ),
+                                          const SizedBox(width: 8),
+                                          Row(
+                                            children: [
+                                              Container(
+                                                padding: const EdgeInsets.symmetric(
+                                                  horizontal: 12,
+                                                  vertical: 6,
+                                                ),
+                                                decoration: BoxDecoration(
+                                                  color: const Color(0xFFE8F5E9),
+                                                  borderRadius: BorderRadius.circular(12),
+                                                ),
+                                                child: Text(
+                                                  'Hadir ${item.hadir}',
+                                                  style: GoogleFonts.poppins(
+                                                    fontSize: 12,
+                                                    fontWeight: FontWeight.w700,
+                                                    color: const Color(0xFF2E7D32),
+                                                  ),
+                                                ),
+                                              ),
+                                              const SizedBox(width: 8),
+                                              Container(
+                                                padding: const EdgeInsets.symmetric(
+                                                  horizontal: 12,
+                                                  vertical: 6,
+                                                ),
+                                                decoration: BoxDecoration(
+                                                  color: const Color(0xFFFFF3E0),
+                                                  borderRadius: BorderRadius.circular(12),
+                                                ),
+                                                child: Text(
+                                                  'Belum ${item.belum}',
+                                                  style: GoogleFonts.poppins(
+                                                    fontSize: 12,
+                                                    fontWeight: FontWeight.w700,
+                                                    color: const Color(0xFFB78103),
+                                                  ),
+                                                ),
+                                              ),
+                                            ],
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              )),
+                      ],
+                    ),
+                  ),
                 ),
         ),
       ],
     );
   }
-}
 
+  Widget _buildStatCard({required String label, required String value}) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: const Color(0xFFE8DFD8), width: 1),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.02),
+            blurRadius: 8,
+            offset: const Offset(0, 3),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            label,
+            style: GoogleFonts.poppins(
+              fontSize: 12,
+              fontWeight: FontWeight.w500,
+              color: AppColors.muted,
+            ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            value,
+            style: GoogleFonts.poppins(
+              fontSize: 22,
+              fontWeight: FontWeight.w800,
+              color: AppColors.ink,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}

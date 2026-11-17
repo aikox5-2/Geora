@@ -6,7 +6,7 @@ import '../../services/supabase_service.dart';
 import '../../services/time_service.dart';
 import '../../theme/app_colors.dart';
 import '../../widgets/header.dart';
-import 'anggota_kelas.dart';
+import 'pilih_kelas.dart';
 
 class GuruDashboardTab extends StatefulWidget {
   final Function(int)? onNavigateTab;
@@ -311,7 +311,7 @@ class _GuruDashboardTabState extends State<GuruDashboardTab> {
                         Navigator.push(
                           context,
                           MaterialPageRoute(
-                            builder: (_) => const AnggotaKelasPage(),
+                            builder: (_) => const PilihKelasPage(),
                           ),
                         );
                       },

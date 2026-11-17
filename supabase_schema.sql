@@ -23,6 +23,7 @@ DROP TABLE IF EXISTS siswa CASCADE;
 DROP TABLE IF EXISTS kelas CASCADE;
 DROP TABLE IF EXISTS tahun_ajaran CASCADE;
 DROP TABLE IF EXISTS guru CASCADE;
+DROP TABLE IF EXISTS admin CASCADE;
 DROP TABLE IF EXISTS users CASCADE;
 DROP TABLE IF EXISTS sekolah CASCADE;
 
@@ -54,6 +55,19 @@ CREATE TABLE users (
     alamat TEXT,
     status VARCHAR(50) DEFAULT 'aktif',
     last_login TIMESTAMPTZ,
+    created_at TIMESTAMPTZ DEFAULT now()
+);
+
+-- 3.2.1 ADMIN (Profil Administrator Sekolah)
+CREATE TABLE admin (
+    id_admin UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id UUID REFERENCES users(id_user) ON DELETE CASCADE,
+    sekolah_id UUID REFERENCES sekolah(id_sekolah) ON DELETE CASCADE,
+    nama VARCHAR(255) NOT NULL DEFAULT 'Administrator',
+    email VARCHAR(255),
+    no_hp VARCHAR(50) DEFAULT '081234567890',
+    alamat TEXT DEFAULT 'Jl. Pendidikan No. 10, Blitar',
+    jabatan VARCHAR(100) DEFAULT 'Administrator',
     created_at TIMESTAMPTZ DEFAULT now()
 );
 
@@ -206,6 +220,7 @@ CREATE TABLE aktifitas (
 -- ==============================================================================
 ALTER TABLE sekolah ENABLE ROW LEVEL SECURITY;
 ALTER TABLE users ENABLE ROW LEVEL SECURITY;
+ALTER TABLE admin ENABLE ROW LEVEL SECURITY;
 ALTER TABLE guru ENABLE ROW LEVEL SECURITY;
 ALTER TABLE tahun_ajaran ENABLE ROW LEVEL SECURITY;
 ALTER TABLE kelas ENABLE ROW LEVEL SECURITY;
@@ -220,6 +235,7 @@ ALTER TABLE aktifitas ENABLE ROW LEVEL SECURITY;
 
 CREATE POLICY "Akses Penuh Sekolah" ON sekolah FOR ALL TO anon, authenticated USING (true) WITH CHECK (true);
 CREATE POLICY "Akses Penuh Users" ON users FOR ALL TO anon, authenticated USING (true) WITH CHECK (true);
+CREATE POLICY "Akses Penuh Admin" ON admin FOR ALL TO anon, authenticated USING (true) WITH CHECK (true);
 CREATE POLICY "Akses Penuh Guru" ON guru FOR ALL TO anon, authenticated USING (true) WITH CHECK (true);
 CREATE POLICY "Akses Penuh Tahun Ajaran" ON tahun_ajaran FOR ALL TO anon, authenticated USING (true) WITH CHECK (true);
 CREATE POLICY "Akses Penuh Kelas" ON kelas FOR ALL TO anon, authenticated USING (true) WITH CHECK (true);
@@ -288,8 +304,12 @@ BEGIN
 
     -- 2. Buat User Admin
     INSERT INTO users (sekolah_id, username, password, role, nama, no_hp, alamat, status)
-    VALUES (v_sekolah_id, 'admin@gmail.com', 'Password123', 'admin', 'Administrator', '+62 812-3456-7890', 'Jl. Pendidikan No. 10, Blitar', 'aktif')
+    VALUES (v_sekolah_id, 'admin@gmail.com', 'Password123', 'admin', 'Administrator', '081234567890', 'Jl. Pendidikan No. 10, Blitar', 'aktif')
     RETURNING id_user INTO v_user_admin;
+
+    -- 2.1 Buat Profil Admin
+    INSERT INTO admin (user_id, sekolah_id, nama, email, no_hp, alamat, jabatan)
+    VALUES (v_user_admin, v_sekolah_id, 'Administrator', 'admin@gmail.com', '081234567890', 'Jl. Pendidikan No. 10, Blitar', 'Super Administrator');
 
     -- 3. Buat User Guru (Yudi Guru)
     INSERT INTO users (sekolah_id, username, password, role, nama, no_hp, alamat, status)

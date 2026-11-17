@@ -12,6 +12,8 @@ class UserModel {
   final String name;
   final UserRole role;
   final String? info;
+  final String? nisn;
+  final String? classId;
   final String avatarInitials;
   final String? phone;
   final String? address;
@@ -25,6 +27,8 @@ class UserModel {
     required this.name,
     required this.role,
     this.info,
+    this.nisn,
+    this.classId,
     required this.avatarInitials,
     this.phone = '+62 812-3456-7890',
     this.address = 'Jl. Pendidikan No. 10, Blitar',

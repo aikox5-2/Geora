@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../models/model_akun.dart';
 import '../../services/dummy_data_service.dart';
+import '../../services/supabase_service.dart';
 import '../../theme/app_colors.dart';
 import '../../widgets/header.dart';
 import '../../widgets/kolom_cari.dart';
@@ -18,11 +19,24 @@ class _ManageSiswaPageState extends State<ManageSiswaPage> {
   final DummyDataService _dataService = DummyDataService();
   final TextEditingController _searchController = TextEditingController();
   String _searchQuery = '';
+  List<Map<String, dynamic>> _availableClasses = [];
 
   @override
   void initState() {
     super.initState();
     _dataService.addListener(_onDataChanged);
+    _loadClasses();
+  }
+
+  Future<void> _loadClasses() async {
+    try {
+      final list = await SupabaseService().getClassesDetailed();
+      if (mounted) {
+        setState(() {
+          _availableClasses = list;
+        });
+      }
+    } catch (_) {}
   }
 
   @override
@@ -200,8 +214,18 @@ class _ManageSiswaPageState extends State<ManageSiswaPage> {
     final nameCtrl = TextEditingController();
     final nisnCtrl = TextEditingController();
     final nisCtrl = TextEditingController();
-    final classCtrl = TextEditingController(text: 'XII RPL D');
-    final jurusanCtrl = TextEditingController(text: 'Rekayasa Perangkat Lunak');
+    final classOptions = _availableClasses.isNotEmpty
+        ? _availableClasses
+            .map((c) => c['className']?.toString() ?? '')
+            .where((s) => s.isNotEmpty)
+            .toList()
+        : [
+            'XII Rekayasa Perangkat Lunak D',
+            'XII Keperawatan',
+            'XII Desain Komunikasi Visual',
+            'XII Teknik Komputer Jaringan',
+          ];
+    String selectedClass = classOptions.first;
     String gender = 'Laki-laki';
     final phoneCtrl = TextEditingController();
     final addressCtrl = TextEditingController();
@@ -302,29 +326,41 @@ class _ManageSiswaPageState extends State<ManageSiswaPage> {
                   ),
                   const SizedBox(height: 10),
 
-                  // Kelas & Jurusan
-                  Row(
-                    children: [
-                      Expanded(
-                        child: TextField(
-                          controller: classCtrl,
-                          decoration: InputDecoration(
-                            labelText: 'Kelas',
-                            border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-                          ),
-                        ),
+                  // Pilih Kelas Dropdown (Sesuai database kelas)
+                  Text(
+                    'Kelas*',
+                    style: GoogleFonts.poppins(fontSize: 12.5, fontWeight: FontWeight.w600, color: AppColors.ink),
+                  ),
+                  const SizedBox(height: 6),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 14),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFFAF7F4),
+                      border: Border.all(color: const Color(0xFFE8DFD8)),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: DropdownButtonHideUnderline(
+                      child: DropdownButton<String>(
+                        value: classOptions.contains(selectedClass) ? selectedClass : classOptions.first,
+                        isExpanded: true,
+                        items: classOptions.map((c) {
+                          return DropdownMenuItem<String>(
+                            value: c,
+                            child: Text(
+                              c,
+                              style: GoogleFonts.poppins(fontSize: 13, color: AppColors.ink, fontWeight: FontWeight.w500),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          );
+                        }).toList(),
+                        onChanged: (val) {
+                          if (val != null) {
+                            setDialogState(() => selectedClass = val);
+                          }
+                        },
                       ),
-                      const SizedBox(width: 10),
-                      Expanded(
-                        child: TextField(
-                          controller: jurusanCtrl,
-                          decoration: InputDecoration(
-                            labelText: 'Jurusan',
-                            border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-                          ),
-                        ),
-                      ),
-                    ],
+                    ),
                   ),
                   const SizedBox(height: 10),
 
@@ -424,10 +460,17 @@ class _ManageSiswaPageState extends State<ManageSiswaPage> {
                   );
                   return;
                 }
+                final matchedClass = _availableClasses.firstWhere(
+                  (c) => c['className']?.toString() == selectedClass,
+                  orElse: () => {},
+                );
+                final classIdVal = matchedClass['id']?.toString();
+
                 final newStudent = StudentAccount(
                   id: 'std_${DateTime.now().millisecondsSinceEpoch}',
+                  classId: classIdVal,
                   name: nameCtrl.text.trim(),
-                  className: classCtrl.text.trim().isEmpty ? 'XII RPL D' : classCtrl.text.trim(),
+                  className: selectedClass,
                   nisn: nisnCtrl.text.trim().isEmpty ? '0051283999' : nisnCtrl.text.trim(),
                   nis: nisCtrl.text.trim(),
                   username: usernameCtrl.text.trim().isNotEmpty
@@ -462,7 +505,18 @@ class _ManageSiswaPageState extends State<ManageSiswaPage> {
   /// Edit Akun Siswa (Memunculkan status & tombol Reset Password)
   void _showEditStudentDialog(StudentAccount student) {
     final nameCtrl = TextEditingController(text: student.name);
-    final classCtrl = TextEditingController(text: student.className);
+    final classOptions = _availableClasses.isNotEmpty
+        ? _availableClasses
+            .map((c) => c['className']?.toString() ?? '')
+            .where((s) => s.isNotEmpty)
+            .toList()
+        : [
+            'XII Rekayasa Perangkat Lunak D',
+            'XII Keperawatan',
+            'XII Desain Komunikasi Visual',
+            'XII Teknik Komputer Jaringan',
+          ];
+    String selectedClass = classOptions.contains(student.className) ? student.className : classOptions.first;
     final nisnCtrl = TextEditingController(text: student.nisn);
     final nisCtrl = TextEditingController(text: student.nis ?? '');
     final phoneCtrl = TextEditingController(text: student.phone ?? '');
@@ -498,28 +552,52 @@ class _ManageSiswaPageState extends State<ManageSiswaPage> {
                     ),
                   ),
                   const SizedBox(height: 10),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: TextField(
-                          controller: classCtrl,
-                          decoration: InputDecoration(
-                            labelText: 'Kelas',
-                            border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-                          ),
-                        ),
+
+                  // Pilih Kelas Dropdown
+                  Text(
+                    'Kelas*',
+                    style: GoogleFonts.poppins(fontSize: 12.5, fontWeight: FontWeight.w600, color: AppColors.ink),
+                  ),
+                  const SizedBox(height: 6),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 14),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFFAF7F4),
+                      border: Border.all(color: const Color(0xFFE8DFD8)),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: DropdownButtonHideUnderline(
+                      child: DropdownButton<String>(
+                        value: classOptions.contains(selectedClass) ? selectedClass : classOptions.first,
+                        isExpanded: true,
+                        items: classOptions.map((c) {
+                          return DropdownMenuItem<String>(
+                            value: c,
+                            child: Text(
+                              c,
+                              style: GoogleFonts.poppins(fontSize: 13, color: AppColors.ink, fontWeight: FontWeight.w500),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          );
+                        }).toList(),
+                        onChanged: (val) {
+                          if (val != null) {
+                            setDialogState(() => selectedClass = val);
+                          }
+                        },
                       ),
-                      const SizedBox(width: 10),
-                      Expanded(
-                        child: TextField(
-                          controller: nisnCtrl,
-                          decoration: InputDecoration(
-                            labelText: 'NISN',
-                            border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-                          ),
-                        ),
-                      ),
-                    ],
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+
+                  // NISN
+                  TextField(
+                    controller: nisnCtrl,
+                    decoration: InputDecoration(
+                      labelText: 'NISN',
+                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                    ),
                   ),
                   const SizedBox(height: 10),
                   TextField(
@@ -621,11 +699,18 @@ class _ManageSiswaPageState extends State<ManageSiswaPage> {
                   );
                   return;
                 }
+                final matchedClass = _availableClasses.firstWhere(
+                  (c) => c['className']?.toString() == selectedClass,
+                  orElse: () => {},
+                );
+                final classIdVal = matchedClass['id']?.toString();
+
                 _dataService.updateStudent(
                   student.id,
                   nameCtrl.text.trim(),
-                  classCtrl.text.trim(),
+                  selectedClass,
                   nisnCtrl.text.trim(),
+                  classId: classIdVal,
                   status: currentStatus,
                   nis: nisCtrl.text.trim(),
                   phone: phoneCtrl.text.trim(),

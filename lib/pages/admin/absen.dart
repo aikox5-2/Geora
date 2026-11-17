@@ -193,6 +193,7 @@ class _AdminAttendanceTabState extends State<AdminAttendanceTab> {
                                       context,
                                       MaterialPageRoute(
                                         builder: (_) => AnggotaKelasPage(
+                                          classId: item.classId,
                                           className: item.className,
                                         ),
                                       ),

@@ -104,6 +104,18 @@ class _SiswaAttendanceHubTabState extends State<SiswaAttendanceHubTab> {
     final user = AuthService().currentUser;
     final studentName = user?.name ?? 'Budiono Siregar';
     final statusToday = _stateService.todayStatusLabel;
+    final infoDisplay = (user?.info != null && user!.info!.isNotEmpty)
+        ? user.info!
+        : 'XII Keperawatan';
+    final nisnDisplay = (user?.nisn != null && user!.nisn!.isNotEmpty)
+        ? 'NISN : ${user.nisn}'
+        : (user != null && user.aliases.isNotEmpty
+            ? 'NISN : ${user.aliases.first}'
+            : 'NISN : 0051283925');
+    final isTimeOver = !_stateService.isDirectAttendanceTimeAllowed();
+    final hasAuto = _stateService.hasAutomaticSubmitted;
+    final hasManual = _stateService.hasManualSubmitted;
+    final isAlreadyCheckedIn = hasAuto || hasManual;
 
     return SingleChildScrollView(
       physics: const BouncingScrollPhysics(),
@@ -111,53 +123,26 @@ class _SiswaAttendanceHubTabState extends State<SiswaAttendanceHubTab> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // 1. Top Header with Logo
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          // 1. Top Header without right icon (Requirement 7)
+          Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    _greeting,
-                    style: GoogleFonts.poppins(
-                      fontSize: 13,
-                      fontWeight: FontWeight.w400,
-                      color: AppColors.muted,
-                    ),
-                  ),
-                  const SizedBox(height: 2),
-                  Text(
-                    'Absensi Siswa',
-                    style: GoogleFonts.poppins(
-                      fontSize: 26,
-                      fontWeight: FontWeight.w800,
-                      color: AppColors.ink,
-                      letterSpacing: -0.5,
-                    ),
-                  ),
-                ],
-              ),
-              Container(
-                width: 44,
-                height: 44,
-                decoration: BoxDecoration(
-                  color: AppColors.maroon,
-                  borderRadius: BorderRadius.circular(14),
-                  boxShadow: [
-                    BoxShadow(
-                      color: AppColors.maroon.withValues(alpha: 0.25),
-                      blurRadius: 8,
-                      offset: const Offset(0, 3),
-                    ),
-                  ],
+              Text(
+                _greeting,
+                style: GoogleFonts.poppins(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w400,
+                  color: AppColors.muted,
                 ),
-                alignment: Alignment.center,
-                child: const Icon(
-                  Icons.school_rounded,
-                  color: Colors.white,
-                  size: 24,
+              ),
+              const SizedBox(height: 2),
+              Text(
+                'Absensi Siswa',
+                style: GoogleFonts.poppins(
+                  fontSize: 26,
+                  fontWeight: FontWeight.w800,
+                  color: AppColors.ink,
+                  letterSpacing: -0.5,
                 ),
               ),
             ],
@@ -204,14 +189,14 @@ class _SiswaAttendanceHubTabState extends State<SiswaAttendanceHubTab> {
                 ),
                 const SizedBox(height: 4),
                 Text(
-                  'NISN • 0000000000',
+                  nisnDisplay,
                   style: GoogleFonts.poppins(
                     fontSize: 12.5,
                     color: Colors.white.withValues(alpha: 0.85),
                   ),
                 ),
                 Text(
-                  'XII RPL D • Rekayasa Perangkat Lunak',
+                  infoDisplay,
                   style: GoogleFonts.poppins(
                     fontSize: 12,
                     color: Colors.white.withValues(alpha: 0.85),
@@ -284,31 +269,82 @@ class _SiswaAttendanceHubTabState extends State<SiswaAttendanceHubTab> {
                 ),
                 const SizedBox(height: 18),
 
+                if (isTimeOver && !isAlreadyCheckedIn) ...[
+                  Container(
+                    width: double.infinity,
+                    margin: const EdgeInsets.only(bottom: 14),
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: Colors.amber.shade50,
+                      borderRadius: BorderRadius.circular(14),
+                      border: Border.all(color: Colors.amber.shade400, width: 1.2),
+                    ),
+                    child: Row(
+                      children: [
+                        Icon(Icons.access_time_filled_rounded, color: Colors.amber.shade800, size: 22),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: Text(
+                            'Waktu absen langsung telah berakhir (Maksimal ${_stateService.endAttendanceTimeString} WIB). Silakan gunakan formulir Absen Manual di bawah.',
+                            style: GoogleFonts.poppins(
+                              fontSize: 11.5,
+                              color: Colors.amber.shade900,
+                              fontWeight: FontWeight.w600,
+                              height: 1.4,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+
                 // Button 1: Absen Sekarang (Otomatis GPS & Kamera)
+                // Requirement 5: Jika sudah absen manual, tombol ini terkunci dan tidak bisa ditekan
                 SizedBox(
                   width: double.infinity,
                   height: 50,
                   child: ElevatedButton(
-                    onPressed: _stateService.isAlreadyCheckedInToday
+                    onPressed: hasManual
                         ? () {
                             ScaffoldMessenger.of(context).showSnackBar(
-                              SnackBar(
-                                content: Text('Anda sudah melakukan absensi hari ini ($statusToday). Absensi direset jam 00.00 malam.'),
+                              const SnackBar(
+                                content: Text('Anda telah mengajukan absen manual hari ini. Absen langsung tidak dapat dilakukan kecuali direset oleh admin.'),
                                 backgroundColor: AppColors.maroon,
-                                duration: const Duration(seconds: 3),
+                                duration: Duration(seconds: 3),
                               ),
                             );
                           }
-                        : () {
-                            Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                builder: (_) => const SiswaAutoAttendancePage(),
-                              ),
-                            );
-                          },
+                        : (hasAuto
+                            ? () {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  SnackBar(
+                                    content: Text('Anda sudah melakukan absensi hari ini ($statusToday).'),
+                                    backgroundColor: AppColors.maroon,
+                                    duration: const Duration(seconds: 3),
+                                  ),
+                                );
+                              }
+                            : (isTimeOver
+                                ? () {
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      SnackBar(
+                                        content: Text('Waktu absensi langsung telah selesai (${_stateService.endAttendanceTimeString} WIB). Silakan ajukan melalui Absen Manual.'),
+                                        backgroundColor: Colors.amber.shade900,
+                                        duration: const Duration(seconds: 3),
+                                      ),
+                                    );
+                                  }
+                                : () {
+                                    Navigator.push(
+                                      context,
+                                      MaterialPageRoute(
+                                        builder: (_) => const SiswaAutoAttendancePage(),
+                                      ),
+                                    );
+                                  })),
                     style: ElevatedButton.styleFrom(
-                      backgroundColor: _stateService.isAlreadyCheckedInToday
+                      backgroundColor: (hasManual || hasAuto || isTimeOver)
                           ? Colors.grey.shade400
                           : AppColors.maroon,
                       foregroundColor: Colors.white,
@@ -318,9 +354,13 @@ class _SiswaAttendanceHubTabState extends State<SiswaAttendanceHubTab> {
                       ),
                     ),
                     child: Text(
-                      _stateService.isAlreadyCheckedInToday
-                          ? 'Sudah Absen ($statusToday)'
-                          : 'Absen Sekarang',
+                      hasManual
+                          ? 'Absen Sekarang (Terkunci)'
+                          : (hasAuto
+                              ? (statusToday.toLowerCase().contains('terlambat')
+                                  ? 'Terlambat'
+                                  : (statusToday.toLowerCase().contains('hadir') ? 'Hadir' : statusToday))
+                              : (isTimeOver ? 'Waktu Absen Selesai' : 'Absen Sekarang')),
                       style: GoogleFonts.poppins(
                         fontSize: 15,
                         fontWeight: FontWeight.w700,
@@ -332,29 +372,45 @@ class _SiswaAttendanceHubTabState extends State<SiswaAttendanceHubTab> {
                 const SizedBox(height: 10),
 
                 // Button 2: Absen Manual (Izin & Sakit)
+                // Requirement 5: Jika sudah absen otomatis, tombol ini terkunci dan tidak bisa ditekan
                 SizedBox(
                   width: double.infinity,
                   height: 48,
                   child: OutlinedButton(
-                    onPressed: () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (_) => const AbsenManualPage(),
-                        ),
-                      );
-                    },
+                    onPressed: hasAuto
+                        ? () {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(
+                                content: Text('Anda sudah melakukan absen langsung hari ini ($statusToday). Absen manual tidak dapat diajukan kecuali direset oleh admin.'),
+                                backgroundColor: AppColors.maroon,
+                                duration: const Duration(seconds: 3),
+                              ),
+                            );
+                          }
+                        : () {
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (_) => const AbsenManualPage(),
+                              ),
+                            );
+                          },
                     style: OutlinedButton.styleFrom(
-                      foregroundColor: AppColors.maroon,
-                      side: const BorderSide(color: AppColors.maroon, width: 1.5),
+                      foregroundColor: hasAuto ? Colors.grey.shade400 : AppColors.maroon,
+                      side: BorderSide(
+                        color: hasAuto ? Colors.grey.shade300 : AppColors.maroon,
+                        width: 1.5,
+                      ),
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(16),
                       ),
                     ),
                     child: Text(
-                      _stateService.hasManualSubmitted
-                          ? 'Lihat Status Absen Manual'
-                          : 'Absen Manual (Izin / Sakit)',
+                      hasAuto
+                          ? 'Absen Manual (Terkunci)'
+                          : (hasManual
+                              ? 'Lihat Status Absen Manual'
+                              : 'Absen Manual (Izin / Sakit)'),
                       style: GoogleFonts.poppins(
                         fontSize: 14,
                         fontWeight: FontWeight.w700,

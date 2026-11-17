@@ -12,10 +12,12 @@ import 'detail_siswa.dart';
 
 class KelasAttendancePage extends StatefulWidget {
   final String className;
+  final String? classId;
 
   const KelasAttendancePage({
     super.key,
     this.className = 'XII RPL D',
+    this.classId,
   });
 
   @override
@@ -37,7 +39,7 @@ class _KelasAttendancePageState extends State<KelasAttendancePage> {
   Future<void> _loadRealStudents() async {
     setState(() => _isLoading = true);
     try {
-      final list = await SupabaseService().getStudentsForClass(widget.className);
+      final list = await SupabaseService().getStudentsForClass(widget.className, classId: widget.classId);
       if (list.isNotEmpty) {
         _students = list.map((s) {
           return StudentAttendanceItem(
@@ -56,25 +58,10 @@ class _KelasAttendancePageState extends State<KelasAttendancePage> {
           );
         }).toList();
       } else {
-        // Fallback matching real seed students
-        _students = [
-          StudentAttendanceItem(name: 'Ahmad Farhan', initials: 'AF', time: '— WIB', status: 'Alpha', className: widget.className, nisn: '0062341901'),
-          StudentAttendanceItem(name: 'Budiono Siregar', initials: 'BS', time: '— WIB', status: 'Alpha', className: widget.className, nisn: '0051283921'),
-          StudentAttendanceItem(name: 'Chelsea Aqila Putri', initials: 'CA', time: '— WIB', status: 'Alpha', className: widget.className, nisn: '0061283922'),
-          StudentAttendanceItem(name: 'Dimas Ibrahimovic', initials: 'DI', time: '— WIB', status: 'Alpha', className: widget.className, nisn: '0062341902'),
-          StudentAttendanceItem(name: 'Malika Aisyabila', initials: 'MA', time: '— WIB', status: 'Alpha', className: widget.className, nisn: '0061283923'),
-          StudentAttendanceItem(name: 'Nabil Syafiq Afa', initials: 'NS', time: '— WIB', status: 'Alpha', className: widget.className, nisn: '0061283924'),
-        ];
+        _students = [];
       }
     } catch (_) {
-      _students = [
-        StudentAttendanceItem(name: 'Ahmad Farhan', initials: 'AF', time: '— WIB', status: 'Alpha', className: widget.className, nisn: '0062341901'),
-        StudentAttendanceItem(name: 'Budiono Siregar', initials: 'BS', time: '— WIB', status: 'Alpha', className: widget.className, nisn: '0051283921'),
-        StudentAttendanceItem(name: 'Chelsea Aqila Putri', initials: 'CA', time: '— WIB', status: 'Alpha', className: widget.className, nisn: '0061283922'),
-        StudentAttendanceItem(name: 'Dimas Ibrahimovic', initials: 'DI', time: '— WIB', status: 'Alpha', className: widget.className, nisn: '0062341902'),
-        StudentAttendanceItem(name: 'Malika Aisyabila', initials: 'MA', time: '— WIB', status: 'Alpha', className: widget.className, nisn: '0061283923'),
-        StudentAttendanceItem(name: 'Nabil Syafiq Afa', initials: 'NS', time: '— WIB', status: 'Alpha', className: widget.className, nisn: '0061283924'),
-      ];
+      _students = [];
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }

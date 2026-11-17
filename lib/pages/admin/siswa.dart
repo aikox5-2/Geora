@@ -84,7 +84,7 @@ class _AdminStudentsTabState extends State<AdminStudentsTab> {
           if (!newMap.containsKey(sid)) {
             newMap[sid] = s == 'disetujui'
                 ? (j == 'sakit' ? 'Sakit' : 'Izin')
-                : 'Menunggu (${j == 'sakit' ? 'Sakit' : 'Izin'})';
+                : (s == 'ditolak' ? 'Ditolak' : 'Dalam Tinjauan');
           }
         }
 
@@ -103,6 +103,9 @@ class _AdminStudentsTabState extends State<AdminStudentsTab> {
     if (_attendanceStatusMap.containsKey(student.id)) {
       return _attendanceStatusMap[student.id]!;
     }
+    if (student.userId != null && _attendanceStatusMap.containsKey(student.userId)) {
+      return _attendanceStatusMap[student.userId]!;
+    }
     return 'Belum Absen';
   }
 
@@ -116,6 +119,10 @@ class _AdminStudentsTabState extends State<AdminStudentsTab> {
         return Colors.blue.shade700;
       case 'sakit':
         return Colors.purple.shade700;
+      case 'dalam tinjauan':
+        return Colors.amber.shade900;
+      case 'ditolak':
+        return Colors.red.shade700;
       case 'belum absen':
       default:
         return Colors.grey.shade600;
@@ -187,16 +194,19 @@ class _AdminStudentsTabState extends State<AdminStudentsTab> {
 
     showModalBottomSheet(
       context: context,
+      isScrollControlled: true,
       backgroundColor: Colors.white,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
       ),
-      builder: (ctx) => Padding(
-        padding: const EdgeInsets.fromLTRB(24, 20, 24, 32),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
+      builder: (ctx) => SafeArea(
+        child: SingleChildScrollView(
+          physics: const BouncingScrollPhysics(),
+          padding: const EdgeInsets.fromLTRB(24, 20, 24, 32),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
             Center(
               child: Container(
                 width: 40,
@@ -306,6 +316,7 @@ class _AdminStudentsTabState extends State<AdminStudentsTab> {
             ],
           ],
         ),
+      ),
       ),
     );
   }

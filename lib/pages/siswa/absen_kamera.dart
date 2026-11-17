@@ -2,10 +2,13 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:flutter_map/flutter_map.dart';
+import 'package:latlong2/latlong.dart' as ll;
 import '../../services/attendance_state_service.dart';
 import '../../services/location_service.dart';
 import '../../services/time_service.dart';
 import '../../theme/app_colors.dart';
+import '../../widgets/camera_viewfinder.dart';
 import '../../widgets/header.dart';
 
 class SiswaAutoAttendancePage extends StatefulWidget {
@@ -20,6 +23,7 @@ class _SiswaAutoAttendancePageState extends State<SiswaAutoAttendancePage> {
   final LocationService _locationService = LocationService();
   final AttendanceStateService _attendanceState = AttendanceStateService();
   final ImagePicker _picker = ImagePicker();
+  final MapController _mapController = MapController();
 
   Uint8List? _photoBytes;
   String? _photoPath;
@@ -61,6 +65,32 @@ class _SiswaAutoAttendancePageState extends State<SiswaAutoAttendancePage> {
 
   Future<void> _takePhoto() async {
     try {
+      final result = await CameraViewfinderScreen.open(context);
+      if (result != null) {
+        final loc = _locationService.lastLocation?.locationName ?? 'SMK Negeri 8 Kota Malang';
+
+        setState(() {
+          _photoBytes = result.bytes;
+          _photoPath = result.path;
+          _photoTimestamp = '${_timeService.formattedDateShort} • ${_timeService.formattedTime}';
+          _photoLocation = loc;
+        });
+
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Foto bukti kehadiran berhasil diambil!'),
+              backgroundColor: Colors.green,
+              duration: Duration(seconds: 2),
+            ),
+          );
+        }
+        return;
+      }
+    } catch (_) {}
+
+    // Fallback to ImagePicker if custom viewfinder cannot be used
+    try {
       final picked = await _picker.pickImage(
         source: ImageSource.camera,
         preferredCameraDevice: CameraDevice.front,
@@ -83,7 +113,7 @@ class _SiswaAutoAttendancePageState extends State<SiswaAutoAttendancePage> {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
-              content: Text('Foto bukti kehadiran dengan kamera perangkat berhasil diambil!'),
+              content: Text('Foto bukti kehadiran berhasil diambil!'),
               backgroundColor: Colors.green,
               duration: Duration(seconds: 2),
             ),
@@ -96,45 +126,6 @@ class _SiswaAutoAttendancePageState extends State<SiswaAutoAttendancePage> {
         _photoTimestamp = '${_timeService.formattedDateShort} • ${_timeService.formattedTime}';
         _photoLocation = loc;
       });
-
-      if (mounted) {
-        showDialog(
-          context: context,
-          builder: (ctx) => AlertDialog(
-            backgroundColor: Colors.white,
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(22)),
-            title: Row(
-              children: [
-                const Icon(Icons.camera_alt_rounded, color: AppColors.maroon),
-                const SizedBox(width: 10),
-                Text(
-                  'Kamera Perangkat',
-                  style: GoogleFonts.poppins(
-                    fontSize: 16,
-                    fontWeight: FontWeight.w700,
-                    color: AppColors.ink,
-                  ),
-                ),
-              ],
-            ),
-            content: Text(
-              'Foto kehadiran berhasil diambil dan disematkan watermark lokasi ${_photoLocation!} serta waktu ${_photoTimestamp!}.',
-              style: GoogleFonts.poppins(fontSize: 13, color: AppColors.muted),
-            ),
-            actions: [
-              ElevatedButton(
-                onPressed: () => Navigator.pop(ctx),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: AppColors.maroon,
-                  foregroundColor: Colors.white,
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                ),
-                child: const Text('OK'),
-              ),
-            ],
-          ),
-        );
-      }
     }
   }
 
@@ -295,7 +286,7 @@ class _SiswaAutoAttendancePageState extends State<SiswaAutoAttendancePage> {
           children: [
             Text(
               success
-                  ? 'Kehadiran Anda di $locName tercatat pada ${_timeService.formattedTime}. Foto bukti berhasil diunggah ke penyimpanan cloud Supabase.'
+                  ? 'Kehadiran Anda di $locName tercatat pada ${_timeService.formattedTime}. Foto bukti kehadiran berhasil diverifikasi.'
                   : 'Data absensi Anda telah diproses.',
               style: GoogleFonts.poppins(
                 fontSize: 13,
@@ -312,11 +303,11 @@ class _SiswaAutoAttendancePageState extends State<SiswaAutoAttendancePage> {
               ),
               child: Row(
                 children: [
-                  const Icon(Icons.cloud_done_rounded, color: Colors.green, size: 18),
+                  const Icon(Icons.verified_rounded, color: Colors.green, size: 18),
                   const SizedBox(width: 8),
                   Expanded(
                     child: Text(
-                      'Tersimpan di Bucket Supabase & Terverifikasi',
+                      'Data Absensi Terverifikasi',
                       style: GoogleFonts.poppins(fontSize: 11, fontWeight: FontWeight.w600),
                     ),
                   ),
@@ -473,12 +464,12 @@ class _SiswaAutoAttendancePageState extends State<SiswaAutoAttendancePage> {
 
                           const SizedBox(height: 14),
 
-                          // Google Maps Map Card container (Satelit Frame sesuai Gambar 3)
+                          // Interactive Google Maps Overlay with zoom in/out
                           Container(
-                            height: 150,
+                            height: 220,
                             width: double.infinity,
                             decoration: BoxDecoration(
-                              borderRadius: BorderRadius.circular(16),
+                              borderRadius: BorderRadius.circular(18),
                               border: Border.all(color: const Color(0xFFD4E3EA), width: 1.5),
                               boxShadow: [
                                 BoxShadow(
@@ -489,133 +480,143 @@ class _SiswaAutoAttendancePageState extends State<SiswaAutoAttendancePage> {
                               ],
                             ),
                             child: ClipRRect(
-                              borderRadius: BorderRadius.circular(15),
+                              borderRadius: BorderRadius.circular(17),
                               child: Stack(
-                                fit: StackFit.expand,
                                 children: [
-                                  // Frame Citra Satelit Google Maps SMK Negeri 8 Malang
-                                  Image.asset(
-                                    'asset/maps_smkn8.jpg',
-                                    fit: BoxFit.cover,
-                                    errorBuilder: (context, error, stackTrace) {
-                                      return Container(
-                                        color: const Color(0xFFE8F1F5),
-                                        child: CustomPaint(painter: _MapGridPainter()),
-                                      );
-                                    },
-                                  ),
-                                  // Subtle dark gradient overlay for readability
-                                  Container(
-                                    decoration: BoxDecoration(
-                                      gradient: LinearGradient(
-                                        begin: Alignment.topCenter,
-                                        end: Alignment.bottomCenter,
-                                        colors: [
-                                          Colors.black.withValues(alpha: 0.15),
-                                          Colors.black.withValues(alpha: 0.45),
-                                        ],
+                                  FlutterMap(
+                                    mapController: _mapController,
+                                    options: MapOptions(
+                                      initialCenter: ll.LatLng(lat, lng),
+                                      initialZoom: 16.0,
+                                      minZoom: 11.0,
+                                      maxZoom: 19.0,
+                                      interactionOptions: const InteractionOptions(
+                                        flags: InteractiveFlag.all,
                                       ),
                                     ),
-                                  ),
-                                  // Watermark / Google Maps indicator in corner
-                                  Positioned(
-                                    top: 10,
-                                    left: 12,
-                                    child: Container(
-                                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                                      decoration: BoxDecoration(
-                                        color: Colors.black.withValues(alpha: 0.55),
-                                        borderRadius: BorderRadius.circular(8),
+                                    children: [
+                                      TileLayer(
+                                        urlTemplate: 'https://mt1.google.com/vt/lyrs=m&x={x}&y={y}&z={z}',
+                                        userAgentPackageName: 'com.geora.app',
                                       ),
-                                      child: Row(
-                                        mainAxisSize: MainAxisSize.min,
-                                        children: [
-                                          const Icon(Icons.satellite_alt_rounded, color: Colors.white, size: 14),
-                                          const SizedBox(width: 4),
-                                          Text(
-                                            'Google Maps Satellite',
-                                            style: GoogleFonts.poppins(
-                                              fontSize: 10,
-                                              color: Colors.white,
-                                              fontWeight: FontWeight.w500,
+                                      CircleLayer(
+                                        circles: [
+                                          CircleMarker(
+                                            point: ll.LatLng(LocationService.schoolLatitude, LocationService.schoolLongitude),
+                                            radius: LocationService.defaultMaxRadiusMeters,
+                                            useRadiusInMeter: true,
+                                            color: AppColors.maroon.withValues(alpha: 0.18),
+                                            borderColor: AppColors.maroon,
+                                            borderStrokeWidth: 2.0,
+                                          ),
+                                        ],
+                                      ),
+                                      MarkerLayer(
+                                        markers: [
+                                          // School Pin
+                                          Marker(
+                                            point: ll.LatLng(LocationService.schoolLatitude, LocationService.schoolLongitude),
+                                            width: 38,
+                                            height: 38,
+                                            child: Container(
+                                              decoration: const BoxDecoration(
+                                                color: AppColors.maroon,
+                                                shape: BoxShape.circle,
+                                                boxShadow: [BoxShadow(color: Colors.black38, blurRadius: 4)],
+                                              ),
+                                              child: const Icon(Icons.school_rounded, color: Colors.white, size: 20),
                                             ),
                                           ),
-                                        ],
-                                      ),
-                                    ),
-                                  ),
-                                  // Location marker badge
-                                  Center(
-                                    child: Container(
-                                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-                                      decoration: BoxDecoration(
-                                        color: Colors.white.withValues(alpha: 0.94),
-                                        borderRadius: BorderRadius.circular(20),
-                                        boxShadow: [
-                                          BoxShadow(
-                                            color: Colors.black.withValues(alpha: 0.25),
-                                            blurRadius: 10,
-                                            offset: const Offset(0, 4),
-                                          ),
-                                        ],
-                                      ),
-                                      child: Row(
-                                        mainAxisSize: MainAxisSize.min,
-                                        children: [
-                                          Container(
-                                            width: 32,
-                                            height: 32,
-                                            decoration: BoxDecoration(
-                                              color: Colors.blue.shade700,
-                                              shape: BoxShape.circle,
-                                              boxShadow: [
-                                                BoxShadow(
-                                                  color: Colors.blue.withValues(alpha: 0.4),
-                                                  blurRadius: 8,
+                                          // Student Location Pin
+                                          Marker(
+                                            point: ll.LatLng(lat, lng),
+                                            width: 44,
+                                            height: 44,
+                                            child: Column(
+                                              mainAxisSize: MainAxisSize.min,
+                                              children: [
+                                                Container(
+                                                  padding: const EdgeInsets.all(5),
+                                                  decoration: BoxDecoration(
+                                                    color: Colors.blue.shade700,
+                                                    shape: BoxShape.circle,
+                                                    boxShadow: const [BoxShadow(color: Colors.black38, blurRadius: 6)],
+                                                  ),
+                                                  child: const Icon(Icons.person_pin_circle_rounded, color: Colors.white, size: 20),
                                                 ),
                                               ],
                                             ),
-                                            child: const Icon(
-                                              Icons.school_rounded,
-                                              color: Colors.white,
-                                              size: 17,
+                                          ),
+                                        ],
+                                      ),
+                                    ],
+                                  ),
+
+                                  // Zoom In / Out Controls & Re-center
+                                  Positioned(
+                                    top: 10,
+                                    right: 10,
+                                    child: Column(
+                                      children: [
+                                        _buildMapIconButton(
+                                          icon: Icons.add_rounded,
+                                          onTap: () {
+                                            final z = _mapController.camera.zoom;
+                                            _mapController.move(_mapController.camera.center, (z + 1).clamp(11.0, 19.0));
+                                          },
+                                        ),
+                                        const SizedBox(height: 6),
+                                        _buildMapIconButton(
+                                          icon: Icons.remove_rounded,
+                                          onTap: () {
+                                            final z = _mapController.camera.zoom;
+                                            _mapController.move(_mapController.camera.center, (z - 1).clamp(11.0, 19.0));
+                                          },
+                                        ),
+                                        const SizedBox(height: 6),
+                                        _buildMapIconButton(
+                                          icon: Icons.my_location_rounded,
+                                          onTap: () {
+                                            _mapController.move(ll.LatLng(lat, lng), 16.0);
+                                          },
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+
+                                  // Bottom Overlay Banner with Verified GPS status
+                                  Positioned(
+                                    bottom: 10,
+                                    left: 10,
+                                    right: 10,
+                                    child: Container(
+                                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                                      decoration: BoxDecoration(
+                                        color: Colors.white.withValues(alpha: 0.95),
+                                        borderRadius: BorderRadius.circular(14),
+                                        boxShadow: const [BoxShadow(color: Colors.black12, blurRadius: 6)],
+                                      ),
+                                      child: Row(
+                                        children: [
+                                          Container(
+                                            width: 8,
+                                            height: 8,
+                                            decoration: const BoxDecoration(
+                                              color: Colors.green,
+                                              shape: BoxShape.circle,
                                             ),
                                           ),
-                                          const SizedBox(width: 10),
-                                          Column(
-                                            mainAxisSize: MainAxisSize.min,
-                                            crossAxisAlignment: CrossAxisAlignment.start,
-                                            children: [
-                                              Text(
-                                                'SMK Negeri 8 Kota Malang',
-                                                style: GoogleFonts.poppins(
-                                                  fontSize: 12.5,
-                                                  fontWeight: FontWeight.w700,
-                                                  color: AppColors.ink,
-                                                ),
+                                          const SizedBox(width: 8),
+                                          Expanded(
+                                            child: Text(
+                                              'Google Maps Live • Dalam Radius Sekolah (${LocationService.defaultMaxRadiusMeters.round()}m)',
+                                              style: GoogleFonts.poppins(
+                                                fontSize: 10.5,
+                                                fontWeight: FontWeight.w700,
+                                                color: AppColors.ink,
                                               ),
-                                              Row(
-                                                children: [
-                                                  Container(
-                                                    width: 7,
-                                                    height: 7,
-                                                    decoration: const BoxDecoration(
-                                                      color: Colors.green,
-                                                      shape: BoxShape.circle,
-                                                    ),
-                                                  ),
-                                                  const SizedBox(width: 5),
-                                                  Text(
-                                                    'Radius GPS Terverifikasi',
-                                                    style: GoogleFonts.poppins(
-                                                      fontSize: 10.5,
-                                                      color: Colors.green.shade800,
-                                                      fontWeight: FontWeight.w700,
-                                                    ),
-                                                  ),
-                                                ],
-                                              ),
-                                            ],
+                                              overflow: TextOverflow.ellipsis,
+                                            ),
                                           ),
                                         ],
                                       ),
@@ -878,24 +879,26 @@ class _SiswaAutoAttendancePageState extends State<SiswaAutoAttendancePage> {
       ),
     );
   }
-}
 
-class _MapGridPainter extends CustomPainter {
-  @override
-  void paint(Canvas canvas, Size size) {
-    final paint = Paint()
-      ..color = const Color(0xFFC7DBE5).withValues(alpha: 0.6)
-      ..strokeWidth = 1.0;
-
-    for (double i = 0; i < size.width; i += 28) {
-      canvas.drawLine(Offset(i, 0), Offset(i, size.height), paint);
-    }
-    for (double j = 0; j < size.height; j += 28) {
-      canvas.drawLine(Offset(0, j), Offset(size.width, j), paint);
-    }
+  Widget _buildMapIconButton({
+    required IconData icon,
+    required VoidCallback onTap,
+  }) {
+    return Material(
+      color: Colors.white.withValues(alpha: 0.95),
+      borderRadius: BorderRadius.circular(8),
+      elevation: 2,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(8),
+        child: Container(
+          width: 32,
+          height: 32,
+          alignment: Alignment.center,
+          child: Icon(icon, size: 18, color: AppColors.maroon),
+        ),
+      ),
+    );
   }
-
-  @override
-  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
 }
 

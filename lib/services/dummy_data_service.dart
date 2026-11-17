@@ -91,6 +91,7 @@ class DummyDataService extends ChangeNotifier {
     String name,
     String className,
     String nisn, {
+    String? classId,
     String? status,
     String? phone,
     String? address,
@@ -101,6 +102,7 @@ class DummyDataService extends ChangeNotifier {
     if (idx != -1) {
       _students[idx].name = name;
       _students[idx].className = className;
+      if (classId != null) _students[idx].classId = classId;
       _students[idx].nisn = nisn;
       _students[idx].initials = calculateInitials(name);
       if (status != null) _students[idx].status = status;
@@ -111,7 +113,17 @@ class DummyDataService extends ChangeNotifier {
       notifyListeners();
     }
     try {
-      await SupabaseService().updateStudent(id, name, className, nisn);
+      await SupabaseService().updateStudent(
+        id,
+        name,
+        className,
+        nisn,
+        classId: classId,
+        phone: phone,
+        address: address,
+        gender: gender,
+        status: status,
+      );
     } catch (_) {}
   }
 
@@ -204,7 +216,16 @@ class DummyDataService extends ChangeNotifier {
       notifyListeners();
     }
     try {
-      await SupabaseService().updateAdmin(id, name, roleTitle, adminId);
+      await SupabaseService().updateAdmin(
+        id,
+        name,
+        roleTitle,
+        adminId,
+        phone: phone,
+        email: email,
+        address: address,
+        status: status,
+      );
     } catch (_) {}
   }
 

@@ -5,7 +5,22 @@ import 'package:image_picker/image_picker.dart';
 import '../../services/attendance_state_service.dart';
 import '../../services/time_service.dart';
 import '../../theme/app_colors.dart';
+import '../../widgets/camera_viewfinder.dart';
 import '../../widgets/guru_piket.dart';
+
+class ManualProofFile {
+  final String? url;
+  final Uint8List? bytes;
+  final String name;
+
+  ManualProofFile({
+    this.url,
+    this.bytes,
+    required this.name,
+  });
+
+  bool get isNetwork => url != null && url!.isNotEmpty;
+}
 
 class AbsenManualPage extends StatefulWidget {
   const AbsenManualPage({super.key});
@@ -21,14 +36,19 @@ class _AbsenManualPageState extends State<AbsenManualPage> {
 
   String _selectedType = 'Izin';
   final TextEditingController _reasonController = TextEditingController();
-  Uint8List? _proofFileBytes;
-  String? _proofFileName;
+  final List<ManualProofFile> _proofFiles = [];
   bool _isSubmitting = false;
+  bool _isEditing = false;
 
   @override
   void initState() {
     super.initState();
     _stateService.addListener(_onStateChanged);
+    _syncLatestStatus();
+  }
+
+  Future<void> _syncLatestStatus() async {
+    await _stateService.syncTodayAttendance();
   }
 
   @override
@@ -43,20 +63,49 @@ class _AbsenManualPageState extends State<AbsenManualPage> {
   }
 
   Future<void> _pickProof(ImageSource source) async {
-    try {
-      final picked = await _picker.pickImage(
-        source: source,
-        maxWidth: 1200,
-        maxHeight: 1200,
-        imageQuality: 85,
+    if (_proofFiles.length >= 3) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Maksimal lampiran 3 berkas bukti.'),
+          backgroundColor: Colors.orange,
+        ),
       );
+      return;
+    }
 
-      if (picked != null) {
-        final bytes = await picked.readAsBytes();
-        setState(() {
-          _proofFileBytes = bytes;
-          _proofFileName = picked.name;
-        });
+    try {
+      if (source == ImageSource.gallery) {
+        // Can pick multiple images from gallery
+        final pickedList = await _picker.pickMultiImage(
+          maxWidth: 1200,
+          maxHeight: 1200,
+          imageQuality: 85,
+        );
+
+        if (pickedList.isNotEmpty) {
+          int availableSlots = 3 - _proofFiles.length;
+          for (int i = 0; i < pickedList.length && i < availableSlots; i++) {
+            final file = pickedList[i];
+            final bytes = await file.readAsBytes();
+            setState(() {
+              _proofFiles.add(ManualProofFile(
+                bytes: bytes,
+                name: file.name,
+              ));
+            });
+          }
+        }
+      } else {
+        // Camera source: langsung buka in-app camera viewfinder seperti absen kamera
+        final capture = await CameraViewfinderScreen.open(context);
+        if (capture != null && mounted) {
+          setState(() {
+            _proofFiles.add(ManualProofFile(
+              bytes: capture.bytes,
+              name: 'bukti_kamera_${DateTime.now().millisecondsSinceEpoch}.jpg',
+            ));
+          });
+        }
       }
     } catch (e) {
       if (mounted) {
@@ -65,6 +114,40 @@ class _AbsenManualPageState extends State<AbsenManualPage> {
         );
       }
     }
+  }
+
+  void _removeProofFile(int index) {
+    if (index >= 0 && index < _proofFiles.length) {
+      setState(() {
+        _proofFiles.removeAt(index);
+      });
+    }
+  }
+
+  void _startEditing(ManualSubmission submission) {
+    setState(() {
+      _isEditing = true;
+      _selectedType = submission.type;
+      _reasonController.text = submission.reason;
+      _proofFiles.clear();
+      for (final url in submission.fileUrls) {
+        if (url.trim().isNotEmpty) {
+          final uri = Uri.tryParse(url);
+          final rawName = uri != null && uri.pathSegments.isNotEmpty
+              ? uri.pathSegments.last
+              : 'surat_bukti.jpg';
+          _proofFiles.add(ManualProofFile(url: url, name: rawName));
+        }
+      }
+    });
+  }
+
+  void _cancelEditing() {
+    setState(() {
+      _isEditing = false;
+      _proofFiles.clear();
+      _reasonController.clear();
+    });
   }
 
   void _submitManualAttendance() async {
@@ -120,14 +203,56 @@ class _AbsenManualPageState extends State<AbsenManualPage> {
 
     setState(() => _isSubmitting = true);
 
-    _stateService.submitManual(
+    if (_isEditing) {
+      final existingUrls = _proofFiles
+          .where((f) => f.isNetwork && f.url != null)
+          .map((f) => f.url!)
+          .toList();
+
+      final newFiles = _proofFiles.where((f) => !f.isNetwork && f.bytes != null).toList();
+      final newBytes = newFiles.map((f) => f.bytes!).toList();
+      final newNames = newFiles.map((f) => f.name).toList();
+
+      final ok = await _stateService.updateManual(
+        type: _selectedType,
+        reason: reason,
+        existingUrls: existingUrls,
+        newFileBytesList: newBytes,
+        newFileNamesList: newNames,
+      );
+
+      setState(() {
+        _isSubmitting = false;
+        if (ok) _isEditing = false;
+      });
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(ok
+                ? 'Pengajuan absensi berhasil diperbarui.'
+                : 'Pengajuan sudah disetujui dan tidak dapat diubah lagi.'),
+            backgroundColor: ok ? Colors.green : Colors.red,
+          ),
+        );
+      }
+      return;
+    }
+
+    // New submission mode
+    final newBytes = _proofFiles.where((f) => f.bytes != null).map((f) => f.bytes!).toList();
+    final newNames = _proofFiles.where((f) => f.bytes != null).map((f) => f.name).toList();
+
+    await _stateService.submitManual(
       type: _selectedType,
       reason: reason,
-      fileBytes: _proofFileBytes,
-      fileName: _proofFileName,
+      fileBytesList: newBytes,
+      fileNamesList: newNames,
     );
 
     setState(() => _isSubmitting = false);
+
+    if (!mounted) return;
 
     showDialog(
       context: context,
@@ -158,7 +283,7 @@ class _AbsenManualPageState extends State<AbsenManualPage> {
           ],
         ),
         content: Text(
-          'Permohonan $_selectedType beserta bukti surat/foto Anda telah dikirimkan ke guru piket dan tersimpan di penyimpanan cloud.',
+          'Permohonan $_selectedType beserta berkas bukti telah dikirimkan ke guru piket dan tersimpan di sistem.',
           style: GoogleFonts.poppins(fontSize: 13, color: AppColors.muted, height: 1.5),
         ),
         actions: [
@@ -170,61 +295,6 @@ class _AbsenManualPageState extends State<AbsenManualPage> {
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
             ),
             child: const Text('OK'),
-          ),
-        ],
-      ),
-    );
-  }
-
-  void _showEditReasonDialog(ManualSubmission submission) {
-    final editCtrl = TextEditingController(text: submission.reason);
-
-    showDialog(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        backgroundColor: Colors.white,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(22)),
-        title: Text(
-          'Edit / Tambah Keterangan',
-          style: GoogleFonts.poppins(
-            fontWeight: FontWeight.w700,
-            fontSize: 16,
-            color: AppColors.ink,
-          ),
-        ),
-        content: TextField(
-          controller: editCtrl,
-          maxLines: 4,
-          style: GoogleFonts.poppins(fontSize: 13.5, color: AppColors.ink),
-          decoration: InputDecoration(
-            hintText: 'Perbarui atau tambahkan keterangan izin/sakit...',
-            border: OutlineInputBorder(borderRadius: BorderRadius.circular(14)),
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: Text('Batal', style: GoogleFonts.poppins(color: AppColors.muted)),
-          ),
-          ElevatedButton(
-            onPressed: () {
-              if (editCtrl.text.trim().isNotEmpty) {
-                _stateService.updateManualReason(editCtrl.text.trim());
-                Navigator.pop(ctx);
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(
-                    content: Text('Keterangan pengajuan berhasil diperbarui.'),
-                    duration: Duration(seconds: 2),
-                  ),
-                );
-              }
-            },
-            style: ElevatedButton.styleFrom(
-              backgroundColor: AppColors.maroon,
-              foregroundColor: Colors.white,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-            ),
-            child: const Text('Simpan'),
           ),
         ],
       ),
@@ -292,6 +362,32 @@ class _AbsenManualPageState extends State<AbsenManualPage> {
     );
   }
 
+  void _showImagePreviewDialog(String? url, Uint8List? bytes) {
+    showDialog(
+      context: context,
+      builder: (ctx) => Dialog(
+        backgroundColor: Colors.transparent,
+        child: Stack(
+          alignment: Alignment.topRight,
+          children: [
+            ClipRRect(
+              borderRadius: BorderRadius.circular(16),
+              child: bytes != null
+                  ? Image.memory(bytes, fit: BoxFit.contain)
+                  : (url != null && url.isNotEmpty
+                      ? Image.network(url, fit: BoxFit.contain)
+                      : const SizedBox()),
+            ),
+            IconButton(
+              icon: const Icon(Icons.close_rounded, color: Colors.white, size: 28),
+              onPressed: () => Navigator.pop(ctx),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final submission = _stateService.todayManualSubmission;
@@ -317,13 +413,19 @@ class _AbsenManualPageState extends State<AbsenManualPage> {
                   children: [
                     IconButton(
                       icon: const Icon(Icons.arrow_back_rounded, color: AppColors.ink),
-                      onPressed: () => Navigator.pop(context),
+                      onPressed: () {
+                        if (_isEditing) {
+                          _cancelEditing();
+                        } else {
+                          Navigator.pop(context);
+                        }
+                      },
                       padding: EdgeInsets.zero,
                       constraints: const BoxConstraints(),
                     ),
                     const SizedBox(width: 14),
                     Text(
-                      'Absen Manual',
+                      _isEditing ? 'Edit Absen Manual' : 'Absen Manual',
                       style: GoogleFonts.poppins(
                         fontSize: 22,
                         fontWeight: FontWeight.w800,
@@ -336,7 +438,9 @@ class _AbsenManualPageState extends State<AbsenManualPage> {
                 Padding(
                   padding: const EdgeInsets.only(left: 38),
                   child: Text(
-                    'Ajukan absensi jika lokasi tidak dapat digunakan',
+                    _isEditing
+                        ? 'Perbarui jenis izin, alasan, atau kelola berkas bukti'
+                        : 'Ajukan absensi jika lokasi tidak dapat digunakan',
                     style: GoogleFonts.poppins(
                       fontSize: 12.5,
                       color: AppColors.muted,
@@ -346,17 +450,17 @@ class _AbsenManualPageState extends State<AbsenManualPage> {
 
                 const SizedBox(height: 24),
 
-                // If already submitted manual attendance today: Show Status Card (Requirement 7)
-                if (submission != null) ...[
+                // If already submitted and NOT currently editing: Show Status Card
+                if (submission != null && !_isEditing) ...[
                   _buildSubmittedStatusCard(submission),
                   const SizedBox(height: 24),
                 ] else ...[
-                  // Show Submission Form (Image 5)
-                  _buildSubmissionForm(),
+                  // Show Submission Form (Creation or Full Edit Mode)
+                  _buildSubmissionForm(isEdit: _isEditing),
                   const SizedBox(height: 28),
                 ],
 
-                // Always display Guru / Karyawan Bertugas List with WhatsApp buttons (Image 2 & 5)
+                // Always display Guru / Karyawan Bertugas List with WhatsApp buttons
                 const GuruPiketSection(showHeader: true),
               ],
             ),
@@ -366,9 +470,10 @@ class _AbsenManualPageState extends State<AbsenManualPage> {
     );
   }
 
-  // Requirement 7: Active Submission Status View
+  // Active Submission Status View matching database state
   Widget _buildSubmittedStatusCard(ManualSubmission submission) {
-    final isIzin = submission.type == 'Izin';
+    final isApproved = submission.status.toLowerCase() == 'disetujui';
+    final isIzin = submission.type.toLowerCase() == 'izin';
 
     return Container(
       width: double.infinity,
@@ -377,7 +482,9 @@ class _AbsenManualPageState extends State<AbsenManualPage> {
         color: Colors.white,
         borderRadius: BorderRadius.circular(22),
         border: Border.all(
-          color: isIzin ? Colors.blue.shade100 : Colors.orange.shade100,
+          color: isApproved
+              ? Colors.green.shade300
+              : (isIzin ? Colors.blue.shade100 : Colors.orange.shade100),
           width: 1.5,
         ),
         boxShadow: [
@@ -415,45 +522,63 @@ class _AbsenManualPageState extends State<AbsenManualPage> {
                   Container(
                     padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                     decoration: BoxDecoration(
-                      color: Colors.amber.shade50,
+                      color: isApproved ? Colors.green.shade50 : Colors.amber.shade50,
                       borderRadius: BorderRadius.circular(12),
                     ),
-                    child: Text(
-                      submission.status,
-                      style: GoogleFonts.poppins(
-                        fontSize: 11,
-                        fontWeight: FontWeight.w600,
-                        color: Colors.amber.shade900,
-                      ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        if (isApproved) ...[
+                          Icon(Icons.check_circle_rounded, size: 14, color: Colors.green.shade700),
+                          const SizedBox(width: 4),
+                        ],
+                        Text(
+                          isApproved ? 'Disetujui' : submission.status,
+                          style: GoogleFonts.poppins(
+                            fontSize: 11,
+                            fontWeight: FontWeight.w600,
+                            color: isApproved ? Colors.green.shade800 : Colors.amber.shade900,
+                          ),
+                        ),
+                      ],
                     ),
                   ),
                 ],
               ),
-              IconButton(
-                icon: const Icon(Icons.edit_note_rounded, color: AppColors.maroon, size: 24),
-                onPressed: () => _showEditReasonDialog(submission),
-                tooltip: 'Edit Keterangan',
-              ),
+              if (!isApproved)
+                IconButton(
+                  icon: const Icon(Icons.edit_note_rounded, color: AppColors.maroon, size: 24),
+                  onPressed: () => _startEditing(submission),
+                  tooltip: 'Edit Pengajuan',
+                ),
             ],
           ),
           const SizedBox(height: 14),
+
+          // User Requirement 5: Title changes when approved: "Izin absensi disetujui"
           Text(
-            'Pengajuan Berhasil Dicatat',
+            isApproved
+                ? '${submission.type} absensi disetujui'
+                : 'Pengajuan Berhasil Dicatat',
             style: GoogleFonts.poppins(
-              fontSize: 16,
+              fontSize: 16.5,
               fontWeight: FontWeight.w700,
-              color: AppColors.ink,
+              color: isApproved ? const Color(0xFF2E7D32) : AppColors.ink,
             ),
           ),
           const SizedBox(height: 4),
           Text(
-            '${_timeService.formattedDate} • ${_timeService.formattedTime}',
+            isApproved
+                ? 'Pengajuan absensi Anda telah disetujui oleh guru piket.'
+                : '${_timeService.formattedDate} • ${_timeService.formattedTime}',
             style: GoogleFonts.poppins(
               fontSize: 12,
               color: AppColors.muted,
             ),
           ),
           const SizedBox(height: 12),
+
+          // Alasan Pengajuan
           Container(
             width: double.infinity,
             padding: const EdgeInsets.all(14),
@@ -484,42 +609,148 @@ class _AbsenManualPageState extends State<AbsenManualPage> {
               ],
             ),
           ),
-          const SizedBox(height: 16),
-          Row(
-            children: [
-              Expanded(
-                child: OutlinedButton.icon(
-                  onPressed: () => _showEditReasonDialog(submission),
-                  icon: const Icon(Icons.edit_outlined, size: 16),
-                  label: const Text('Edit Keterangan'),
-                  style: OutlinedButton.styleFrom(
-                    foregroundColor: AppColors.maroon,
-                    side: const BorderSide(color: AppColors.maroon),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(14),
+
+          // Lampiran Bukti
+          if (submission.fileUrls.isNotEmpty) ...[
+            const SizedBox(height: 14),
+            Text(
+              'Berkas Bukti (${submission.fileUrls.length} file):',
+              style: GoogleFonts.poppins(
+                fontSize: 12,
+                fontWeight: FontWeight.w600,
+                color: AppColors.ink,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: submission.fileUrls.map((url) {
+                return InkWell(
+                  onTap: () => _showImagePreviewDialog(url, null),
+                  borderRadius: BorderRadius.circular(10),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(10),
+                      border: Border.all(color: const Color(0xFFE5DDD5)),
                     ),
-                    padding: const EdgeInsets.symmetric(vertical: 12),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Icon(Icons.attach_file_rounded, size: 16, color: AppColors.maroon),
+                        const SizedBox(width: 4),
+                        Text(
+                          'Lihat Bukti',
+                          style: GoogleFonts.poppins(
+                            fontSize: 11.5,
+                            fontWeight: FontWeight.w600,
+                            color: AppColors.maroon,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                );
+              }).toList(),
+            ),
+          ],
+
+          // If NOT approved yet: Show action buttons (Edit & Cancel)
+          // If APPROVED: Hide edit & cancel buttons!
+          if (!isApproved) ...[
+            const SizedBox(height: 16),
+            Row(
+              children: [
+                Expanded(
+                  child: OutlinedButton.icon(
+                    onPressed: () => _startEditing(submission),
+                    icon: const Icon(Icons.edit_outlined, size: 16),
+                    label: const Text('Edit Pengajuan'),
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: AppColors.maroon,
+                      side: const BorderSide(color: AppColors.maroon),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(14),
+                      ),
+                      padding: const EdgeInsets.symmetric(vertical: 12),
+                    ),
                   ),
                 ),
+                const SizedBox(width: 10),
+                IconButton(
+                  onPressed: _confirmCancelSubmission,
+                  icon: const Icon(Icons.delete_outline_rounded, color: Colors.red),
+                  tooltip: 'Batalkan Pengajuan',
+                ),
+              ],
+            ),
+          ] else ...[
+            const SizedBox(height: 14),
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+              decoration: BoxDecoration(
+                color: const Color(0xFFE8F5E9),
+                borderRadius: BorderRadius.circular(12),
               ),
-              const SizedBox(width: 10),
-              IconButton(
-                onPressed: _confirmCancelSubmission,
-                icon: const Icon(Icons.delete_outline_rounded, color: Colors.red),
-                tooltip: 'Batalkan Pengajuan',
+              child: Row(
+                children: [
+                  const Icon(Icons.verified_rounded, size: 18, color: Color(0xFF2E7D32)),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      'Presensi telah tercatat sebagai ${submission.type}',
+                      style: GoogleFonts.poppins(
+                        fontSize: 11.5,
+                        fontWeight: FontWeight.w600,
+                        color: const Color(0xFF2E7D32),
+                      ),
+                    ),
+                  ),
+                ],
               ),
-            ],
-          ),
+            ),
+          ],
         ],
       ),
     );
   }
 
-  // Blank Form View (Image 5)
-  Widget _buildSubmissionForm() {
+  // Submission Form View (Used for both Create and Full Edit)
+  Widget _buildSubmissionForm({required bool isEdit}) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
+        if (isEdit) ...[
+          Container(
+            padding: const EdgeInsets.all(12),
+            margin: const EdgeInsets.only(bottom: 16),
+            decoration: BoxDecoration(
+              color: Colors.amber.shade50,
+              borderRadius: BorderRadius.circular(14),
+              border: Border.all(color: Colors.amber.shade200),
+            ),
+            child: Row(
+              children: [
+                Icon(Icons.info_outline_rounded, size: 20, color: Colors.amber.shade900),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Text(
+                    'Anda sedang mengubah formulir pengajuan absensi manual.',
+                    style: GoogleFonts.poppins(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                      color: Colors.amber.shade900,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+
         // Dropdown Jenis Absen
         Text(
           'Jenis Absen',
@@ -587,7 +818,7 @@ class _AbsenManualPageState extends State<AbsenManualPage> {
 
         const SizedBox(height: 20),
 
-        // Upload Bukti Surat / Foto
+        // Upload Bukti Surat / Foto (Max 3 files)
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
@@ -600,77 +831,111 @@ class _AbsenManualPageState extends State<AbsenManualPage> {
               ),
             ),
             Text(
-              'Surat Dokter / Izin Ortu',
+              'Max 3 Berkas (${_proofFiles.length}/3)',
               style: GoogleFonts.poppins(
                 fontSize: 11,
-                color: AppColors.muted,
+                fontWeight: FontWeight.w600,
+                color: _proofFiles.length >= 3 ? Colors.green.shade700 : AppColors.muted,
               ),
             ),
           ],
         ),
         const SizedBox(height: 8),
 
-        if (_proofFileBytes != null) ...[
-          Container(
-            padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(16),
-              border: Border.all(color: Colors.green.shade300, width: 1.5),
-            ),
-            child: Row(
-              children: [
-                ClipRRect(
-                  borderRadius: BorderRadius.circular(10),
-                  child: Image.memory(
-                    _proofFileBytes!,
-                    width: 50,
-                    height: 50,
-                    fit: BoxFit.cover,
-                  ),
+        // List of attached files
+        if (_proofFiles.isNotEmpty) ...[
+          ListView.separated(
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
+            itemCount: _proofFiles.length,
+            separatorBuilder: (_, _) => const SizedBox(height: 8),
+            itemBuilder: (ctx, index) {
+              final file = _proofFiles[index];
+              return Container(
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(14),
+                  border: Border.all(color: const Color(0xFFE0D8D0)),
                 ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        _proofFileName ?? 'surat_bukti.jpg',
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: GoogleFonts.poppins(
-                          fontSize: 12.5,
-                          fontWeight: FontWeight.w700,
-                          color: AppColors.ink,
-                        ),
+                child: Row(
+                  children: [
+                    InkWell(
+                      onTap: () => _showImagePreviewDialog(file.url, file.bytes),
+                      child: ClipRRect(
+                        borderRadius: BorderRadius.circular(8),
+                        child: file.bytes != null
+                            ? Image.memory(
+                                file.bytes!,
+                                width: 44,
+                                height: 44,
+                                fit: BoxFit.cover,
+                              )
+                            : (file.url != null && file.url!.isNotEmpty
+                                ? Image.network(
+                                    file.url!,
+                                    width: 44,
+                                    height: 44,
+                                    fit: BoxFit.cover,
+                                    errorBuilder: (_, _, _) => Container(
+                                      width: 44,
+                                      height: 44,
+                                      color: const Color(0xFFF0E5DC),
+                                      child: const Icon(Icons.description_rounded,
+                                          color: AppColors.maroon, size: 22),
+                                    ),
+                                  )
+                                : Container(
+                                    width: 44,
+                                    height: 44,
+                                    color: const Color(0xFFF0E5DC),
+                                    child: const Icon(Icons.description_rounded,
+                                        color: AppColors.maroon, size: 22),
+                                  )),
                       ),
-                      const SizedBox(height: 2),
-                      Text(
-                        'Siap diunggah ke Bucket Supabase',
-                        style: GoogleFonts.poppins(
-                          fontSize: 10.5,
-                          color: Colors.green.shade700,
-                          fontWeight: FontWeight.w600,
-                        ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            file.name,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: GoogleFonts.poppins(
+                              fontSize: 12.5,
+                              fontWeight: FontWeight.w600,
+                              color: AppColors.ink,
+                            ),
+                          ),
+                          Text(
+                            file.isNetwork ? 'Berkas tersimpan di cloud' : 'Berkas baru siap diunggah',
+                            style: GoogleFonts.poppins(
+                              fontSize: 10.5,
+                              color: file.isNetwork ? Colors.blue.shade700 : Colors.green.shade700,
+                            ),
+                          ),
+                        ],
                       ),
-                    ],
-                  ),
+                    ),
+                    IconButton(
+                      icon: const Icon(Icons.delete_outline_rounded, color: Colors.red, size: 20),
+                      tooltip: 'Hapus Berkas',
+                      onPressed: () => _removeProofFile(index),
+                    ),
+                  ],
                 ),
-                IconButton(
-                  icon: const Icon(Icons.cancel_rounded, color: Colors.red),
-                  onPressed: () {
-                    setState(() {
-                      _proofFileBytes = null;
-                      _proofFileName = null;
-                    });
-                  },
-                ),
-              ],
-            ),
+              );
+            },
           ),
-        ] else ...[
+          const SizedBox(height: 10),
+        ],
+
+        // Pick buttons if slots available
+        if (_proofFiles.length < 3) ...[
           Container(
-            padding: const EdgeInsets.all(16),
+            padding: const EdgeInsets.all(14),
             decoration: BoxDecoration(
               color: Colors.white,
               borderRadius: BorderRadius.circular(16),
@@ -696,7 +961,7 @@ class _AbsenManualPageState extends State<AbsenManualPage> {
                   child: OutlinedButton.icon(
                     onPressed: () => _pickProof(ImageSource.gallery),
                     icon: const Icon(Icons.upload_file_rounded, size: 18),
-                    label: const Text('Pilih File/Foto'),
+                    label: const Text('Pilih Berkas'),
                     style: OutlinedButton.styleFrom(
                       foregroundColor: AppColors.ink,
                       side: const BorderSide(color: Color(0xFFE8DFD8)),
@@ -712,45 +977,99 @@ class _AbsenManualPageState extends State<AbsenManualPage> {
 
         const SizedBox(height: 24),
 
-        // Submit Button
-        SizedBox(
-          width: double.infinity,
-          height: 52,
-          child: ElevatedButton(
-            onPressed: _isSubmitting ? null : _submitManualAttendance,
-            style: ElevatedButton.styleFrom(
-              backgroundColor: AppColors.maroon,
-              foregroundColor: Colors.white,
-              elevation: 0,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(16),
-              ),
-            ),
-            child: _isSubmitting
-                ? const Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      SizedBox(
-                        width: 20,
-                        height: 20,
-                        child: CircularProgressIndicator(
-                          strokeWidth: 2.5,
-                          valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
-                        ),
-                      ),
-                      SizedBox(width: 12),
-                      Text('Mengirim & Mengunggah...'),
-                    ],
-                  )
-                : Text(
-                    'Kirim Pengajuan',
-                    style: GoogleFonts.poppins(
-                      fontSize: 15,
-                      fontWeight: FontWeight.w700,
-                    ),
+        // Action Buttons
+        if (isEdit) ...[
+          Row(
+            children: [
+              Expanded(
+                child: OutlinedButton(
+                  onPressed: _cancelEditing,
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: AppColors.ink,
+                    side: const BorderSide(color: Color(0xFFE8DFD8)),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                    padding: const EdgeInsets.symmetric(vertical: 15),
                   ),
+                  child: Text(
+                    'Batal',
+                    style: GoogleFonts.poppins(fontWeight: FontWeight.w600, fontSize: 14),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                flex: 2,
+                child: SizedBox(
+                  height: 52,
+                  child: ElevatedButton(
+                    onPressed: _isSubmitting ? null : _submitManualAttendance,
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: AppColors.maroon,
+                      foregroundColor: Colors.white,
+                      elevation: 0,
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                    ),
+                    child: _isSubmitting
+                        ? const SizedBox(
+                            width: 20,
+                            height: 20,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2.5,
+                              valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                            ),
+                          )
+                        : Text(
+                            'Simpan Perubahan',
+                            style: GoogleFonts.poppins(
+                              fontSize: 14.5,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                  ),
+                ),
+              ),
+            ],
           ),
-        ),
+        ] else ...[
+          SizedBox(
+            width: double.infinity,
+            height: 52,
+            child: ElevatedButton(
+              onPressed: _isSubmitting ? null : _submitManualAttendance,
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.maroon,
+                foregroundColor: Colors.white,
+                elevation: 0,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(16),
+                ),
+              ),
+              child: _isSubmitting
+                  ? const Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        SizedBox(
+                          width: 20,
+                          height: 20,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2.5,
+                            valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                          ),
+                        ),
+                        SizedBox(width: 12),
+                        Text('Mengirim & Mengunggah...'),
+                      ],
+                    )
+                  : Text(
+                      'Kirim Pengajuan',
+                      style: GoogleFonts.poppins(
+                        fontSize: 15,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+            ),
+          ),
+        ],
       ],
     );
   }

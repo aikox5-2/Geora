@@ -31,12 +31,14 @@ class SiswaDashboardTab extends StatelessWidget {
                 ? 'Selamat sore'
                 : 'Selamat malam';
 
-    final nisnDisplay = (user != null && user.aliases.isNotEmpty)
-        ? 'NISN • ${user.aliases.first}'
-        : 'NISN • Terverifikasi';
+    final nisnDisplay = (user?.nisn != null && user!.nisn!.isNotEmpty)
+        ? 'NISN : ${user.nisn}'
+        : (user != null && user.aliases.isNotEmpty
+            ? 'NISN : ${user.aliases.first}'
+            : 'NISN : 0051283925');
     final classDisplay = (user != null && user.info != null && user.info!.isNotEmpty)
         ? user.info!
-        : 'XII RPL D • Rekayasa Perangkat Lunak';
+        : 'XII Keperawatan';
 
     return SingleChildScrollView(
       physics: const BouncingScrollPhysics(),
@@ -212,7 +214,11 @@ class SiswaDashboardTab extends StatelessWidget {
                       ),
                     ),
                     child: Text(
-                      'Absen Sekarang',
+                      AttendanceStateService().isAlreadyCheckedInToday
+                          ? AttendanceStateService().todayStatusLabel
+                          : (!AttendanceStateService().isDirectAttendanceTimeAllowed()
+                              ? 'Absen Manual'
+                              : 'Absen Sekarang'),
                       style: GoogleFonts.poppins(
                         fontSize: 14.5,
                         fontWeight: FontWeight.w700,
@@ -318,7 +324,10 @@ class SiswaDashboardTab extends StatelessWidget {
                 Navigator.push(
                   context,
                   MaterialPageRoute(
-                    builder: (_) => const AnggotaKelasPage(),
+                    builder: (_) => AnggotaKelasPage(
+                      className: user?.info ?? 'XII Keperawatan',
+                      classId: user?.classId,
+                    ),
                   ),
                 );
               },

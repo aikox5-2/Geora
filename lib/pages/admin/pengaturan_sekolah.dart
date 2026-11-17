@@ -3,6 +3,8 @@ import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'package:flutter_map/flutter_map.dart';
+import 'package:latlong2/latlong.dart' as ll;
 import '../../services/location_service.dart';
 import '../../services/supabase_service.dart';
 import '../../theme/app_colors.dart';
@@ -16,6 +18,7 @@ class SchoolRadiusSettingsPage extends StatefulWidget {
 
 class _SchoolRadiusSettingsPageState extends State<SchoolRadiusSettingsPage> {
   final SupabaseService _supa = SupabaseService();
+  final MapController _mapController = MapController();
 
   final TextEditingController _nameCtrl = TextEditingController();
   final TextEditingController _addressCtrl = TextEditingController();
@@ -136,7 +139,7 @@ class _SchoolRadiusSettingsPageState extends State<SchoolRadiusSettingsPage> {
     if (success) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('Pengaturan Radius & Lokasi Sekolah berhasil disimpan ke Supabase!'),
+          content: Text('Pengaturan radius dan lokasi sekolah berhasil diperbarui.'),
           backgroundColor: Colors.green,
         ),
       );
@@ -144,7 +147,7 @@ class _SchoolRadiusSettingsPageState extends State<SchoolRadiusSettingsPage> {
     } else {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('Gagal menyimpan ke Supabase. Periksa koneksi internet.'),
+          content: Text('Gagal memperbarui pengaturan sekolah. Periksa koneksi internet.'),
           backgroundColor: Colors.red,
         ),
       );
@@ -269,115 +272,172 @@ class _SchoolRadiusSettingsPageState extends State<SchoolRadiusSettingsPage> {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          // Interactive Map Visual Graphic
-                          Stack(
-                            alignment: Alignment.center,
-                            children: [
-                              Container(
-                                width: double.infinity,
-                                height: 180,
-                                decoration: const BoxDecoration(
-                                  color: Color(0xFFEAEFF2),
-                                ),
-                                child: CustomPaint(
-                                  painter: _MapGridPainter(),
-                                ),
-                              ),
-
-                              // Radius Circle Overlay
-                              Container(
-                                width: 140,
-                                height: 140,
-                                decoration: BoxDecoration(
-                                  shape: BoxShape.circle,
-                                  color: AppColors.maroon.withValues(alpha: 0.15),
-                                  border: Border.all(
-                                    color: AppColors.maroon.withValues(alpha: 0.6),
-                                    width: 2,
+                          // Interactive Google Maps Overlay
+                          SizedBox(
+                            width: double.infinity,
+                            height: 230,
+                            child: Stack(
+                              children: [
+                                FlutterMap(
+                                  mapController: _mapController,
+                                  options: MapOptions(
+                                    initialCenter: ll.LatLng(
+                                      double.tryParse(_latCtrl.text.trim()) ?? LocationService.schoolLatitude,
+                                      double.tryParse(_lngCtrl.text.trim()) ?? LocationService.schoolLongitude,
+                                    ),
+                                    initialZoom: 16.0,
+                                    minZoom: 11.0,
+                                    maxZoom: 19.0,
+                                    interactionOptions: const InteractionOptions(
+                                      flags: InteractiveFlag.all,
+                                    ),
                                   ),
-                                ),
-                              ),
-
-                              // Marker Pin
-                              Column(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  Container(
-                                    padding: const EdgeInsets.all(8),
-                                    decoration: const BoxDecoration(
-                                      color: AppColors.maroon,
-                                      shape: BoxShape.circle,
-                                      boxShadow: [
-                                        BoxShadow(
-                                          color: Colors.black26,
-                                          blurRadius: 8,
-                                          offset: Offset(0, 3),
+                                  children: [
+                                    TileLayer(
+                                      urlTemplate: 'https://mt1.google.com/vt/lyrs=m&x={x}&y={y}&z={z}',
+                                      userAgentPackageName: 'com.geora.app',
+                                    ),
+                                    CircleLayer(
+                                      circles: [
+                                        CircleMarker(
+                                          point: ll.LatLng(
+                                            double.tryParse(_latCtrl.text.trim()) ?? LocationService.schoolLatitude,
+                                            double.tryParse(_lngCtrl.text.trim()) ?? LocationService.schoolLongitude,
+                                          ),
+                                          radius: _radiusMeters,
+                                          useRadiusInMeter: true,
+                                          color: AppColors.maroon.withValues(alpha: 0.22),
+                                          borderColor: AppColors.maroon,
+                                          borderStrokeWidth: 2.5,
                                         ),
                                       ],
                                     ),
-                                    child: const Icon(
-                                      Icons.school_rounded,
-                                      color: Colors.white,
-                                      size: 20,
-                                    ),
-                                  ),
-                                  Container(
-                                    margin: const EdgeInsets.only(top: 4),
-                                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                                    decoration: BoxDecoration(
-                                      color: Colors.white,
-                                      borderRadius: BorderRadius.circular(8),
-                                      boxShadow: const [
-                                        BoxShadow(color: Colors.black12, blurRadius: 4),
+                                    MarkerLayer(
+                                      markers: [
+                                        Marker(
+                                          point: ll.LatLng(
+                                            double.tryParse(_latCtrl.text.trim()) ?? LocationService.schoolLatitude,
+                                            double.tryParse(_lngCtrl.text.trim()) ?? LocationService.schoolLongitude,
+                                          ),
+                                          width: 44,
+                                          height: 44,
+                                          child: Container(
+                                            decoration: const BoxDecoration(
+                                              color: AppColors.maroon,
+                                              shape: BoxShape.circle,
+                                              boxShadow: [
+                                                BoxShadow(color: Colors.black38, blurRadius: 6),
+                                              ],
+                                            ),
+                                            child: const Icon(
+                                              Icons.school_rounded,
+                                              color: Colors.white,
+                                              size: 22,
+                                            ),
+                                          ),
+                                        ),
                                       ],
                                     ),
-                                    child: Text(
-                                      'Radius: ${_radiusMeters.round()}m',
-                                      style: GoogleFonts.poppins(
-                                        fontSize: 10,
-                                        fontWeight: FontWeight.w700,
-                                        color: AppColors.maroon,
+                                  ],
+                                ),
+
+                                // Zoom In / Out Controls & Center button
+                                Positioned(
+                                  top: 10,
+                                  right: 10,
+                                  child: Column(
+                                    children: [
+                                      _buildZoomButton(
+                                        icon: Icons.add_rounded,
+                                        tooltip: 'Perbesar',
+                                        onTap: () {
+                                          final z = _mapController.camera.zoom;
+                                          _mapController.move(_mapController.camera.center, (z + 1).clamp(11.0, 19.0));
+                                        },
+                                      ),
+                                      const SizedBox(height: 6),
+                                      _buildZoomButton(
+                                        icon: Icons.remove_rounded,
+                                        tooltip: 'Perkecil',
+                                        onTap: () {
+                                          final z = _mapController.camera.zoom;
+                                          _mapController.move(_mapController.camera.center, (z - 1).clamp(11.0, 19.0));
+                                        },
+                                      ),
+                                      const SizedBox(height: 6),
+                                      _buildZoomButton(
+                                        icon: Icons.my_location_rounded,
+                                        tooltip: 'Pusatkan ke Sekolah',
+                                        onTap: () {
+                                          final lat = double.tryParse(_latCtrl.text.trim()) ?? LocationService.schoolLatitude;
+                                          final lng = double.tryParse(_lngCtrl.text.trim()) ?? LocationService.schoolLongitude;
+                                          _mapController.move(ll.LatLng(lat, lng), 16.0);
+                                        },
+                                      ),
+                                    ],
+                                  ),
+                                ),
+
+                                // Google Maps External Button
+                                Positioned(
+                                  top: 10,
+                                  left: 10,
+                                  child: InkWell(
+                                    onTap: _openInGoogleMaps,
+                                    borderRadius: BorderRadius.circular(10),
+                                    child: Container(
+                                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                                      decoration: BoxDecoration(
+                                        color: Colors.white.withValues(alpha: 0.95),
+                                        borderRadius: BorderRadius.circular(10),
+                                        boxShadow: const [
+                                          BoxShadow(color: Colors.black12, blurRadius: 4),
+                                        ],
+                                      ),
+                                      child: Row(
+                                        mainAxisSize: MainAxisSize.min,
+                                        children: [
+                                          const Icon(Icons.map_rounded, size: 14, color: AppColors.ink),
+                                          const SizedBox(width: 4),
+                                          Text(
+                                            'Buka Maps',
+                                            style: GoogleFonts.poppins(
+                                              fontSize: 11,
+                                              fontWeight: FontWeight.w600,
+                                              color: AppColors.ink,
+                                            ),
+                                          ),
+                                        ],
                                       ),
                                     ),
                                   ),
-                                ],
-                              ),
+                                ),
 
-                              // Google Maps Launch Button
-                              Positioned(
-                                top: 12,
-                                right: 12,
-                                child: InkWell(
-                                  onTap: _openInGoogleMaps,
-                                  borderRadius: BorderRadius.circular(10),
+                                // Radius label overlay at bottom
+                                Positioned(
+                                  bottom: 10,
+                                  left: 10,
                                   child: Container(
-                                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
                                     decoration: BoxDecoration(
-                                      color: Colors.white,
+                                      color: Colors.white.withValues(alpha: 0.94),
                                       borderRadius: BorderRadius.circular(10),
                                       boxShadow: const [
                                         BoxShadow(color: Colors.black12, blurRadius: 4),
                                       ],
                                     ),
-                                    child: Row(
-                                      mainAxisSize: MainAxisSize.min,
-                                      children: [
-                                        const Icon(Icons.map_rounded, size: 14, color: AppColors.ink),
-                                        const SizedBox(width: 4),
-                                        Text(
-                                          'Buka Maps',
-                                          style: GoogleFonts.poppins(
-                                            fontSize: 11,
-                                            fontWeight: FontWeight.w600,
-                                            color: AppColors.ink,
-                                          ),
-                                        ),
-                                      ],
+                                    child: Text(
+                                      'Radius Aktif: ${_radiusMeters.round()} meter',
+                                      style: GoogleFonts.poppins(
+                                        fontSize: 11,
+                                        fontWeight: FontWeight.w700,
+                                        color: AppColors.maroon,
+                                      ),
                                     ),
                                   ),
                                 ),
-                              ),
-                            ],
+                              ],
+                            ),
                           ),
 
                           Padding(
@@ -586,7 +646,7 @@ class _SchoolRadiusSettingsPageState extends State<SchoolRadiusSettingsPage> {
                                     ),
                                   ),
                                   SizedBox(width: 12),
-                                  Text('Menyimpan ke Supabase...'),
+                                  Text('Menyimpan perubahan...'),
                                 ],
                               )
                             : Text(
@@ -604,32 +664,26 @@ class _SchoolRadiusSettingsPageState extends State<SchoolRadiusSettingsPage> {
       ),
     );
   }
-}
 
-class _MapGridPainter extends CustomPainter {
-  @override
-  void paint(Canvas canvas, Size size) {
-    final paint = Paint()
-      ..color = const Color(0xFFD6DFE6)
-      ..strokeWidth = 1.0;
-
-    // Grid lines
-    for (double x = 0; x < size.width; x += 25) {
-      canvas.drawLine(Offset(x, 0), Offset(x, size.height), paint);
-    }
-    for (double y = 0; y < size.height; y += 25) {
-      canvas.drawLine(Offset(0, y), Offset(size.width, y), paint);
-    }
-
-    // Road simulation lines
-    final roadPaint = Paint()
-      ..color = Colors.white
-      ..strokeWidth = 8.0;
-
-    canvas.drawLine(Offset(0, size.height * 0.4), Offset(size.width, size.height * 0.4), roadPaint);
-    canvas.drawLine(Offset(size.width * 0.5, 0), Offset(size.width * 0.5, size.height), roadPaint);
+  Widget _buildZoomButton({
+    required IconData icon,
+    required String tooltip,
+    required VoidCallback onTap,
+  }) {
+    return Material(
+      color: Colors.white.withValues(alpha: 0.95),
+      borderRadius: BorderRadius.circular(8),
+      elevation: 2,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(8),
+        child: Container(
+          width: 32,
+          height: 32,
+          alignment: Alignment.center,
+          child: Icon(icon, size: 18, color: AppColors.maroon),
+        ),
+      ),
+    );
   }
-
-  @override
-  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
 }

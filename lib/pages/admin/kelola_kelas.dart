@@ -45,9 +45,19 @@ class _ManageKelasPageState extends State<ManageKelasPage> {
     final jurusanCtrl = TextEditingController(text: existing?['jurusan']?.toString() ?? '');
     String? selectedGuruId = existing?['guruId']?.toString();
 
-    // Verify selectedGuruId is in list of teachers
-    if (selectedGuruId != null && !_teachers.any((t) => t.id == selectedGuruId)) {
-      selectedGuruId = null;
+    // Verify selectedGuruId is in list of teachers (matching either id_guru or user_id)
+    if (selectedGuruId != null) {
+      bool found = false;
+      for (final t in _teachers) {
+        if (t.id == selectedGuruId || (t.userId != null && t.userId == selectedGuruId)) {
+          selectedGuruId = t.id;
+          found = true;
+          break;
+        }
+      }
+      if (!found) {
+        selectedGuruId = null;
+      }
     }
 
     showDialog(
@@ -123,35 +133,60 @@ class _ManageKelasPageState extends State<ManageKelasPage> {
 
                     const SizedBox(height: 14),
 
-                    // Wali Kelas Dropdown
+                    // Wali Kelas Searchable Picker
                     Text('Wali Kelas (Guru)', style: GoogleFonts.poppins(fontSize: 12.5, fontWeight: FontWeight.w600)),
                     const SizedBox(height: 6),
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 14),
-                      decoration: BoxDecoration(
-                        border: Border.all(color: const Color(0xFFE8DFD8)),
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      child: DropdownButtonHideUnderline(
-                        child: DropdownButton<String?>(
-                          value: selectedGuruId,
-                          isExpanded: true,
-                          hint: const Text('Pilih Guru Wali Kelas'),
-                          items: [
-                            const DropdownMenuItem<String?>(
-                              value: null,
-                              child: Text('— Belum Ditentukan —'),
-                            ),
-                            ..._teachers.map((g) => DropdownMenuItem<String?>(
-                                  value: g.id,
-                                  child: Text(g.name, maxLines: 1, overflow: TextOverflow.ellipsis),
-                                )),
-                          ],
-                          onChanged: (val) {
-                            setDialogState(() => selectedGuruId = val);
+                    Builder(
+                      builder: (bld) {
+                        TeacherAccount? currentTeacher;
+                        if (selectedGuruId != null) {
+                          for (final t in _teachers) {
+                            if (t.id == selectedGuruId || (t.userId != null && t.userId == selectedGuruId)) {
+                              currentTeacher = t;
+                              break;
+                            }
+                          }
+                        }
+                        final displayName = currentTeacher != null
+                            ? currentTeacher.name
+                            : '— Cari & Pilih Wali Kelas (Maks 5) —';
+
+                        return InkWell(
+                          onTap: () {
+                            _openWaliKelasSearchPicker(context, selectedGuruId, (teacher) {
+                              setDialogState(() => selectedGuruId = teacher?.id);
+                            });
                           },
-                        ),
-                      ),
+                          borderRadius: BorderRadius.circular(12),
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFFFAF7F4),
+                              border: Border.all(color: const Color(0xFFE8DFD8)),
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            child: Row(
+                              children: [
+                                const Icon(Icons.search, size: 20, color: AppColors.maroon),
+                                const SizedBox(width: 10),
+                                Expanded(
+                                  child: Text(
+                                    displayName,
+                                    style: GoogleFonts.poppins(
+                                      fontSize: 13,
+                                      fontWeight: currentTeacher != null ? FontWeight.w600 : FontWeight.w400,
+                                      color: currentTeacher != null ? AppColors.ink : AppColors.muted,
+                                    ),
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                ),
+                                const Icon(Icons.arrow_drop_down, color: AppColors.muted),
+                              ],
+                            ),
+                          ),
+                        );
+                      },
                     ),
                   ],
                 ),
@@ -200,6 +235,15 @@ class _ManageKelasPageState extends State<ManageKelasPage> {
                         ),
                       );
                     }
+                  } else {
+                    if (mounted) {
+                      messenger.showSnackBar(
+                        const SnackBar(
+                          content: Text('Gagal menyimpan kelas. Silakan periksa data.'),
+                          backgroundColor: Colors.red,
+                        ),
+                      );
+                    }
                   }
                 },
                 style: ElevatedButton.styleFrom(
@@ -213,6 +257,162 @@ class _ManageKelasPageState extends State<ManageKelasPage> {
           );
         },
       ),
+    );
+  }
+
+  void _openWaliKelasSearchPicker(
+    BuildContext context,
+    String? currentId,
+    ValueChanged<TeacherAccount?> onSelect,
+  ) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (bCtx) {
+        String query = '';
+        return StatefulBuilder(
+          builder: (modalCtx, setModalState) {
+            final filtered = _teachers.where((t) {
+              if (query.isEmpty) return true;
+              final q = query.toLowerCase();
+              return t.name.toLowerCase().contains(q) || t.nip.contains(q);
+            }).take(5).toList();
+
+            return Material(
+              color: Colors.white,
+              borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+              child: Padding(
+                padding: EdgeInsets.only(
+                  bottom: MediaQuery.of(modalCtx).viewInsets.bottom + 20,
+                  top: 16,
+                  left: 20,
+                  right: 20,
+                ),
+                child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Center(
+                    child: Container(
+                      width: 40,
+                      height: 4,
+                      decoration: BoxDecoration(
+                        color: Colors.grey.shade300,
+                        borderRadius: BorderRadius.circular(4),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 14),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text(
+                        'Pilih Wali Kelas',
+                        style: GoogleFonts.poppins(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w700,
+                          color: AppColors.ink,
+                        ),
+                      ),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFF5EDE5),
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: Text(
+                          'Maksimal 5 Akun',
+                          style: GoogleFonts.poppins(
+                            fontSize: 10.5,
+                            fontWeight: FontWeight.w600,
+                            color: AppColors.maroon,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+                  TextField(
+                    autofocus: true,
+                    onChanged: (val) => setModalState(() => query = val.trim()),
+                    decoration: InputDecoration(
+                      hintText: 'Cari nama guru atau NIP...',
+                      prefixIcon: const Icon(Icons.search, color: AppColors.maroon),
+                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                      contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  ListTile(
+                    contentPadding: EdgeInsets.zero,
+                    leading: const CircleAvatar(
+                      backgroundColor: Color(0xFFF0E5DC),
+                      child: Icon(Icons.person_off_rounded, color: AppColors.maroon, size: 20),
+                    ),
+                    title: Text(
+                      '— Belum Ditentukan —',
+                      style: GoogleFonts.poppins(fontSize: 13, fontWeight: FontWeight.w600, color: AppColors.muted),
+                    ),
+                    onTap: () {
+                      onSelect(null);
+                      Navigator.pop(bCtx);
+                    },
+                  ),
+                  const Divider(height: 1),
+                  if (filtered.isEmpty)
+                    Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 24),
+                      child: Center(
+                        child: Text(
+                          'Guru tidak ditemukan.',
+                          style: GoogleFonts.poppins(fontSize: 12.5, color: AppColors.muted),
+                        ),
+                      ),
+                    )
+                  else
+                    ...filtered.map((t) {
+                      final isSelected = t.id == currentId;
+                      return ListTile(
+                        contentPadding: EdgeInsets.zero,
+                        leading: CircleAvatar(
+                          backgroundColor: isSelected ? AppColors.maroon : const Color(0xFFF5EDE5),
+                          child: Text(
+                            t.name.isNotEmpty ? t.name[0].toUpperCase() : 'G',
+                            style: GoogleFonts.poppins(
+                              color: isSelected ? Colors.white : AppColors.maroon,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                        ),
+                        title: Text(
+                          t.name,
+                          style: GoogleFonts.poppins(
+                            fontSize: 13,
+                            fontWeight: FontWeight.w600,
+                            color: isSelected ? AppColors.maroon : AppColors.ink,
+                          ),
+                        ),
+                        subtitle: Text(
+                          t.nip.isNotEmpty ? 'NIP: ${t.nip}' : (t.mapel.isNotEmpty ? t.mapel : 'Guru'),
+                          style: GoogleFonts.poppins(fontSize: 11, color: AppColors.muted),
+                        ),
+                        trailing: isSelected
+                            ? const Icon(Icons.check_circle_rounded, color: AppColors.maroon)
+                            : null,
+                        onTap: () {
+                          onSelect(t);
+                          Navigator.pop(bCtx);
+                        },
+                      );
+                    }),
+                ],
+              ),
+            ),
+          );
+        },
+        );
+      },
     );
   }
 

@@ -76,7 +76,7 @@ class _AdminProfileTabState extends State<AdminProfileTab> {
                 setState(() {});
                 ScaffoldMessenger.of(context).showSnackBar(
                   SnackBar(
-                    content: Text('$title berhasil diperbarui ke Supabase'),
+                    content: Text('$title berhasil diperbarui'),
                     duration: const Duration(seconds: 2),
                   ),
                 );
@@ -396,9 +396,9 @@ class _AdminProfileTabState extends State<AdminProfileTab> {
                                   ),
                                 ),
                                 const SizedBox(height: 2),
-                                // Hanya angka ID tanpa tulisan "ID Admin"
+                                // Nomor telepon / identitas admin tanpa tulisan ID Admin
                                 Text(
-                                  '0000000000',
+                                  phone.isNotEmpty ? phone : (user?.email ?? 'Administrator'),
                                   style: GoogleFonts.poppins(
                                     fontSize: 13,
                                     fontWeight: FontWeight.w500,

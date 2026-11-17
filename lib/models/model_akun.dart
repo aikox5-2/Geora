@@ -6,7 +6,9 @@ String calculateInitials(String text) {
 }
 
 class StudentAccount {
-  final String id;
+  final String id; // id_siswa or fallback
+  final String? userId;
+  String? classId;
   String name;
   String className;
   String nisn;
@@ -21,6 +23,8 @@ class StudentAccount {
 
   StudentAccount({
     required this.id,
+    this.userId,
+    this.classId,
     required this.name,
     required this.className,
     required this.nisn,
@@ -53,6 +57,7 @@ class StudentAccount {
 
 class TeacherAccount {
   final String id;
+  final String? userId;
   String name;
   String subject;
   String nip;
@@ -65,6 +70,7 @@ class TeacherAccount {
 
   TeacherAccount({
     required this.id,
+    this.userId,
     required this.name,
     required this.subject,
     required this.nip,
@@ -77,6 +83,7 @@ class TeacherAccount {
   }) : initials = initials ?? calculateInitials(name);
 
   String get currentStatus => (status != null && status!.isNotEmpty) ? status! : 'aktif';
+  String get mapel => subject;
 
   Map<String, dynamic> toMap() {
     return {

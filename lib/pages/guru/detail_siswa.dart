@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../../services/supabase_service.dart';
 import '../../services/time_service.dart';
 import '../../theme/app_colors.dart';
@@ -133,7 +134,7 @@ class _DetailSiswaPageState extends State<DetailSiswaPage> {
                 child: Stack(
                   alignment: Alignment.center,
                   children: [
-                    // Tampilkan foto nyata dari bucket jika ada, fallback ke peta satelit
+                    // Tampilkan foto/surat nyata jika ada, atau placeholder tanpa peta palsu
                     if (photoUrl != null && photoUrl.isNotEmpty)
                       Image.network(
                         photoUrl,
@@ -152,20 +153,35 @@ class _DetailSiswaPageState extends State<DetailSiswaPage> {
                             ),
                           );
                         },
-                        errorBuilder: (ctx, e, st) => Image.asset(
-                          'asset/maps_smkn8.jpg',
-                          width: double.infinity,
-                          height: double.infinity,
-                          fit: BoxFit.cover,
+                        errorBuilder: (ctx, e, st) => Container(
+                          color: const Color(0xFFF0E5DC),
+                          child: Center(
+                            child: Column(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                const Icon(Icons.broken_image_outlined, size: 36, color: AppColors.muted),
+                                const SizedBox(height: 6),
+                                Text('Gagal memuat gambar bukti',
+                                    style: GoogleFonts.poppins(fontSize: 11.5, color: AppColors.muted)),
+                              ],
+                            ),
+                          ),
                         ),
                       )
                     else
-                      Image.asset(
-                        'asset/maps_smkn8.jpg',
-                        width: double.infinity,
-                        height: double.infinity,
-                        fit: BoxFit.cover,
-                        errorBuilder: (context, error, stackTrace) => const SizedBox(),
+                      Container(
+                        color: const Color(0xFFF0E5DC),
+                        child: Center(
+                          child: Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              const Icon(Icons.no_photography_outlined, size: 36, color: AppColors.muted),
+                              const SizedBox(height: 6),
+                              Text('Tidak ada foto presensi terlampir',
+                                  style: GoogleFonts.poppins(fontSize: 11.5, color: AppColors.muted)),
+                            ],
+                          ),
+                        ),
                       ),
                     // Overlay gelap tipis
                     Container(
@@ -396,6 +412,17 @@ class _DetailSiswaPageState extends State<DetailSiswaPage> {
                                   ],
                                 ),
                               ),
+                              if (widget.latitude != null && widget.longitude != null)
+                                IconButton(
+                                  onPressed: () async {
+                                    final uri = Uri.parse('https://www.google.com/maps/search/?api=1&query=${widget.latitude},${widget.longitude}');
+                                    if (await canLaunchUrl(uri)) {
+                                      await launchUrl(uri, mode: LaunchMode.externalApplication);
+                                    }
+                                  },
+                                  icon: const Icon(Icons.map_rounded, size: 20, color: AppColors.maroon),
+                                  tooltip: 'Buka di Google Maps',
+                                ),
                               if (widget.status == 'Hadir' || widget.status == 'Terlambat')
                                 TextButton.icon(
                                   onPressed: () => _showPhotoProof(
@@ -403,6 +430,7 @@ class _DetailSiswaPageState extends State<DetailSiswaPage> {
                                     TimeService().formattedDateShort,
                                     realLoc,
                                     widget.time,
+                                    photoUrl: widget.photoUrl,
                                   ),
                                   icon: const Icon(Icons.photo_camera_rounded, size: 16),
                                   label: Text(
